@@ -24,6 +24,9 @@ docker compose up -d db              # Postgres на 5436
 
 Открыть http://localhost:8099 и войти под `BOOTSTRAP_EMAIL` / `BOOTSTRAP_PASSWORD`.
 
+Доступ второму и следующим людям: `python3 -m app.cli adduser <почта> [owner|member]` —
+пароль сгенерируется и покажется один раз.
+
 Всё целиком в контейнерах: `docker compose up` (миграции накатятся сами).
 
 На сервере разворачивается отдельным набором файлов — `docker-compose.prod.yml` и
