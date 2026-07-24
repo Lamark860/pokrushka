@@ -1,6 +1,8 @@
 """Служебные команды.
 
     python3 -m app.cli bootstrap          — арендатор + пользователь + проект с контент-ДНК
+    python3 -m app.cli adduser <email> [owner|member]
+                                          — выдать доступ ещё одному человеку, пароль сгенерируется
     python3 -m app.cli passwd <email>     — сменить пароль (спросит новый)
     python3 -m app.cli tgtrack-sync       — добрать UTM подписчиков из TGTrack
     python3 -m app.cli check-bot          — проверить токен бота и доступ к каналу
@@ -59,6 +61,22 @@ def bootstrap() -> None:
         seed_project(db, project)
 
     print(f"Готово: арендатор «{BRAND}», пользователь {email}, проект «{project.name}».")
+
+
+def adduser(email: str, role: str) -> None:
+    """Доступ второму и следующим: `bootstrap` заводит только первого."""
+    from app.models.tenancy import ROLE_MEMBER
+    from app.services.users import UserError, create_user
+
+    with SessionLocal() as db:
+        try:
+            user, password = create_user(db, email, role=role or ROLE_MEMBER)
+        except UserError as exc:
+            print(exc, file=sys.stderr)
+            raise SystemExit(1) from exc
+
+    print(f"Пользователь {user.email} создан, роль: {user.role}")
+    print(f"Пароль (показывается один раз): {password}")
 
 
 def passwd(email: str) -> None:
@@ -146,6 +164,8 @@ def main() -> None:
     command = sys.argv[1]
     if command == "bootstrap":
         bootstrap()
+    elif command == "adduser" and len(sys.argv) > 2:
+        adduser(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
     elif command == "passwd" and len(sys.argv) > 2:
         passwd(sys.argv[2])
     elif command == "tgtrack-sync":
