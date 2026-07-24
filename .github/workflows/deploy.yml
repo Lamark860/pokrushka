@@ -16,7 +16,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # Пока секреты не заведены, автодеплой просто пропускается: разворачиваем руками
+      # по DEPLOY.md, и пуш не оставляет красный крест в истории.
+      - name: Проверить, заведены ли секреты
+        id: check
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+          PATH_ON_VPS: ${{ secrets.VPS_PATH }}
+        run: |
+          if [ -n "$HOST" ] && [ -n "$KEY" ] && [ -n "$PATH_ON_VPS" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Секреты VPS_* не заданы — автодеплой пропущен, см. DEPLOY.md"
+          fi
+
       - name: Подключиться к серверу и развернуть
+        if: steps.check.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -47,6 +64,7 @@ jobs:
             docker image prune -f
 
       - name: Проверить, что сервис отвечает
+        if: steps.check.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
