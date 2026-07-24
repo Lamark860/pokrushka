@@ -1,0 +1,65 @@
+# Пуш в main → сервер сам подтягивает код и пересобирает контейнеры.
+# Секреты репозитория: VPS_HOST, VPS_USER, VPS_PATH, VPS_SSH_KEY.
+# Ручной запуск: Actions → Deploy to VPS → Run workflow.
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Подключиться к серверу и развернуть
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -e
+            cd ${{ secrets.VPS_PATH }}
+
+            git fetch --prune origin main
+            git reset --hard origin/main
+
+            # .env.prod живёт только на сервере и в git не ходит
+            test -f .env.prod || { echo "нет .env.prod на сервере"; exit 1; }
+
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build web
+
+            # Бот и планировщик поднимаются, только если для них заданы ключи
+            if grep -qE '^TELEGRAM_BOT_TOKEN=.+' .env.prod; then
+              docker compose -f docker-compose.prod.yml --env-file .env.prod --profile tracking up -d bot
+            fi
+            if grep -qE '^(TGTRACK_TG_API_KEY|TGTRACK_MAX_API_KEY|NOTIFY_CHAT_ID)=.+' .env.prod; then
+              docker compose -f docker-compose.prod.yml --env-file .env.prod --profile tracking up -d scheduler
+            fi
+
+            docker image prune -f
+
+      - name: Проверить, что сервис отвечает
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ${{ secrets.VPS_PATH }}
+            port=$(grep -E '^APP_PORT=' .env.prod | cut -d= -f2 || echo 8094)
+            for i in $(seq 1 12); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/healthz" || true)
+              [ "$code" = "200" ] && echo "сервис отвечает" && exit 0
+              sleep 5
+            done
+            echo "healthz не ответил, показываю логи"
+            docker compose -f docker-compose.prod.yml --env-file .env.prod logs --tail=60 web
+            exit 1

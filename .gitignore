@@ -1,0 +1,13 @@
+.env
+.env.prod
+*.pyc
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+out/
+*.sqlite3
+
+# Приватная рабочая дока (не для заказчика)
+/_local_docs/

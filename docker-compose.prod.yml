@@ -1,0 +1,101 @@
+# Прод-развёртывание на VPS. Запуск:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Схема как у соседних проектов на этом сервере: код в /opt/projects/<проект>,
+# секреты в .env.prod рядом (в git его нет), общий Traefik на 80/443.
+# Пока домена нет — веб отдаётся на свободном порту APP_PORT.
+#
+# Бот и планировщик подняты профилем tracking: они бесполезны, пока не выданы
+# токен бота и ключи TGTrack.
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod --profile tracking up -d
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: traff-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - traff-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Одноразовый прогон миграций перед стартом веба: отдельный сервис, чтобы
+  # приложение не пыталось мигрировать в трёх процессах одновременно.
+  migrate:
+    build: .
+    image: traff-app:latest
+    container_name: traff-migrate
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    command: alembic upgrade head
+
+  web:
+    build: .
+    image: traff-app:latest
+    container_name: traff-web
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "${APP_PORT:-8094}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    command: uvicorn app.web.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
+
+  # Слушатель вступлений в канал. Нужен TELEGRAM_BOT_TOKEN и бот-админ в канале.
+  bot:
+    build: .
+    image: traff-app:latest
+    container_name: traff-bot
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["tracking"]
+    command: python -m app.bot.listener
+
+  # Добор меток из TGTrack раз в сутки и напоминание об устаревшей статистике раз в неделю.
+  scheduler:
+    build: .
+    image: traff-app:latest
+    container_name: traff-scheduler
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["tracking"]
+    command: python -m app.scheduler.runner
+
+volumes:
+  traff-pgdata:

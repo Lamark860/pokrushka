@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>{{ project.name }}
+    {% if project.is_demo %}<span class="tag tag--demo">демо</span>{% endif %}
+  </h2>
+  <p class="hint">Каналы и режим работы проекта.</p>
+  <form method="post" action="/projects/{{ project.id }}/settings">
+    <div class="grid2">
+      <div>
+        <label for="tg_channel_url">Telegram-канал (ссылка)</label>
+        <input type="text" id="tg_channel_url" name="tg_channel_url" value="{{ project.tg_channel_url or '' }}"
+               placeholder="https://t.me/artur_baza_marketingg">
+      </div>
+      <div>
+        <label for="tg_channel_id">ID Telegram-канала (для бота, этап 2)</label>
+        <input type="text" id="tg_channel_id" name="tg_channel_id" value="{{ project.tg_channel_id or '' }}"
+               placeholder="-1001234567890">
+      </div>
+      <div>
+        <label for="max_channel_url">Канал в MAX</label>
+        <input type="text" id="max_channel_url" name="max_channel_url" value="{{ project.max_channel_url or '' }}"
+               placeholder="https://max.ru/id183308463787_biz">
+      </div>
+      <div>
+        <label for="site_url">Сайт</label>
+        <input type="text" id="site_url" name="site_url" value="{{ project.site_url or '' }}">
+      </div>
+    </div>
+    <label style="margin-top:14px">
+      <input type="checkbox" name="track_clicks" value="true" {% if project.track_clicks %}checked{% endif %}>
+      Вести CTA через свой редирект и считать клики (заработает на этапе 2)
+    </label>
+    <label>
+      <input type="checkbox" name="is_demo" value="true" {% if project.is_demo %}checked{% endif %}>
+      Демо-режим: витрина показывает засеянные цифры, а не боевые
+    </label>
+    <div class="row" style="margin-top:14px"><button type="submit">Сохранить</button></div>
+  </form>
+</div>
+
+{% set voice = project.voice %}
+<div class="card">
+  <h2>Голос автора</h2>
+  <p class="hint">То, что раньше лежало в knowledge.py. Правится здесь — генератор берёт отсюда.</p>
+  <form method="post" action="/projects/{{ project.id }}/voice">
+    <div class="grid2">
+      <div>
+        <label for="brand">Бренд</label>
+        <input type="text" id="brand" name="brand" value="{{ voice.brand if voice else '' }}">
+      </div>
+      <div>
+        <label for="who">Кто автор</label>
+        <input type="text" id="who" name="who" value="{{ voice.who if voice else '' }}">
+      </div>
+    </div>
+    <label for="core_idea">Главная идея текстов</label>
+    <input type="text" id="core_idea" name="core_idea" value="{{ voice.core_idea if voice else '' }}">
+    <label for="audience">Аудитория</label>
+    <input type="text" id="audience" name="audience" value="{{ voice.audience if voice else '' }}">
+    <label for="persona">Персона (тон)</label>
+    <textarea id="persona" name="persona">{{ voice.persona if voice else '' }}</textarea>
+    <label for="offer_cta">Призыв в конце</label>
+    <textarea id="offer_cta" name="offer_cta">{{ voice.offer_cta if voice else '' }}</textarea>
+    <label for="format_rules">Правила оформления (по строке на правило)</label>
+    <textarea id="format_rules" name="format_rules">{{ (voice.format_rules or []) | join('\n') if voice else '' }}</textarea>
+    <label for="structure">Структура текста (по строке на блок)</label>
+    <textarea id="structure" name="structure">{{ (voice.structure or []) | join('\n') if voice else '' }}</textarea>
+    <label for="topics">Темник (по строке на тему)</label>
+    <textarea id="topics" name="topics">{{ (voice.topics or []) | join('\n') if voice else '' }}</textarea>
+    <label for="hashtags">Хэштеги (через пробел)</label>
+    <input type="text" id="hashtags" name="hashtags" value="{{ (voice.hashtags or []) | join(' ') if voice else '' }}">
+    <div class="row" style="margin-top:14px"><button type="submit">Сохранить голос</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Кейсы с цифрами</h2>
+  <p class="hint">Генератор вплетает 1-2 кейса в каждый текст как доказательство. Цифры не выдумываются.</p>
+  <table>
+    <tr><th>Ниша</th><th>Результат</th><th></th></tr>
+    {% for c in project.cases %}
+    <tr>
+      <td>{{ c.niche }}</td>
+      <td>{{ c.metric }}</td>
+      <td style="width:1%">
+        <form method="post" action="/projects/{{ project.id }}/cases/{{ c.id }}/delete" style="margin:0">
+          <button class="danger">Удалить</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <form method="post" action="/projects/{{ project.id }}/cases" style="margin-top:14px">
+    <div class="grid2">
+      <div><label for="niche">Ниша</label><input type="text" id="niche" name="niche" required></div>
+      <div><label for="metric">Результат с цифрами</label><input type="text" id="metric" name="metric" required></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button type="submit">Добавить кейс</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Ключевые запросы <span class="muted" style="font-weight:400">({{ keywords | length }})</span></h2>
+  <p class="hint">
+    Пока это ручной ввод: список из Вордстата приносит Артур. Принимаются строки «фраза»,
+    «фраза;1200», «фраза,1200» или файл CSV.
+  </p>
+  <form method="post" action="/projects/{{ project.id }}/keywords" enctype="multipart/form-data">
+    <label for="raw">Вставить списком</label>
+    <textarea id="raw" name="raw" placeholder="системный маркетинг;1200&#10;воронка продаж;340"></textarea>
+    <label for="file">Или файлом (CSV)</label>
+    <input type="file" id="file" name="file" accept=".csv,.txt">
+    <div class="row" style="margin-top:12px"><button type="submit">Добавить</button></div>
+  </form>
+  {% if keywords %}
+  <table style="margin-top:16px">
+    <tr><th>Фраза</th><th>Частотность</th><th></th></tr>
+    {% for k in keywords %}
+    <tr>
+      <td>{{ k.phrase }}</td>
+      <td class="muted">{{ k.frequency if k.frequency is not none else '—' }}</td>
+      <td style="width:1%">
+        <form method="post" action="/projects/{{ project.id }}/keywords/{{ k.id }}/delete" style="margin:0">
+          <button class="danger">Удалить</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+{% endblock %}

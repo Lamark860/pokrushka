@@ -1,0 +1,68 @@
+# «База Маркетинг» — органический трафик. Локальная разработка.
+# БД поднимается всегда, веб — по желанию: `docker compose up db` или `docker compose up`.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: traff_db
+    environment:
+      POSTGRES_USER: traff
+      POSTGRES_PASSWORD: traff
+      POSTGRES_DB: traff
+    ports:
+      - "5436:5432"
+    volumes:
+      - traff_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traff -d traff"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    container_name: traff_web
+    env_file: .env
+    environment:
+      # внутри сети compose база доступна по имени сервиса
+      DATABASE_URL: postgresql+psycopg://traff:traff@db:5432/traff
+    ports:
+      - "8099:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.web.main:app --host 0.0.0.0 --port 8000"
+
+  # Слушатель событий вступления в канал. Нужен TELEGRAM_BOT_TOKEN и бот-админ в канале.
+  # Запуск: docker compose --profile tracking up -d bot
+  bot:
+    build: .
+    container_name: traff_bot
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://traff:traff@db:5432/traff
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["tracking"]
+    restart: unless-stopped
+    command: python -m app.bot.listener
+
+  # Фоновые задачи: добор меток из TGTrack, напоминание обновить статистику.
+  # Запуск: docker compose --profile tracking up -d scheduler
+  scheduler:
+    build: .
+    container_name: traff_scheduler
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://traff:traff@db:5432/traff
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["tracking"]
+    restart: unless-stopped
+    command: python -m app.scheduler.runner
+
+volumes:
+  traff_pgdata:

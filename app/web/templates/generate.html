@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Сгенерировать{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Новый текст</h2>
+  <p class="hint">
+    Система выдаёт готовый черновик под площадку. Публикуете руками — копипастом,
+    поэтому риска банов нет.
+  </p>
+  <form method="post" action="/projects/{{ project.id }}/generate">
+    <label for="topic">Тема</label>
+    <input type="text" id="topic" name="topic" list="topics" required
+           placeholder="Как выстроить маркетинг, который не зависит от удачи">
+    <datalist id="topics">
+      {% for t in topics %}<option value="{{ t }}">{% endfor %}
+    </datalist>
+    {% if topics %}
+    <p class="hint" style="margin-top:6px">
+      В темнике {{ topics | length }} идей — начните печатать, поле подскажет.
+    </p>
+    {% endif %}
+
+    <label for="platform">Площадка</label>
+    <select id="platform" name="platform">
+      {% for key, fmt in formats.items() %}
+      <option value="{{ key }}">{{ fmt.title }} — {{ fmt.min_chars }}-{{ fmt.max_chars }} символов{% if fmt.wants_subtitle %}, с подзаголовком{% endif %}</option>
+      {% endfor %}
+    </select>
+
+    {% if keywords %}
+    <label>Ключевые запросы (Дзен и vc.ru; для постов не используются)</label>
+    <div class="card" style="margin:0; max-height:220px; overflow:auto; padding:12px 14px;">
+      {% for k in keywords %}
+      <label style="margin:4px 0; color:var(--ink)">
+        <input type="checkbox" name="keyword_ids" value="{{ k.id }}">
+        {{ k.phrase }}{% if k.frequency %} <span class="muted">({{ k.frequency }})</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="hint" style="margin-top:14px">
+      Ключевых запросов пока нет — добавьте их <a href="/projects/{{ project.id }}">на странице проекта</a>,
+      если нужна SEO-оптимизация под Дзен и vc.ru.
+    </p>
+    {% endif %}
+
+    <div class="row" style="margin-top:18px">
+      <button type="submit">Сгенерировать</button>
+      <a class="btn ghost" href="/projects/{{ project.id }}/articles">К списку статей</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

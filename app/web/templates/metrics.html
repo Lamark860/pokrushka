@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Статистика{% endblock %}
+{% block content %}
+
+{% if stale %}
+<div class="warns">
+  <b>Цифры устарели.</b>
+  {% if stale.last_collected_at %}
+    Последний срез {{ stale.last_collected_at.strftime('%d.%m.%Y') }} — {{ stale.days_since }} дн. назад.
+  {% else %}
+    Опубликованных статей: {{ stale.published }}, а статистику ещё ни разу не заносили.
+  {% endif %}
+  Раз в неделю система напомнит об этом сама.
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Загрузить выгрузку</h2>
+  <p class="hint">
+    Выгрузка из Студии Дзена или vc.ru: CSV или XLSX. Система сама попробует найти нужные
+    колонки и разложить строки по статьям — по ссылке на публикацию, а если её нет, то по
+    заголовку. Сначала стоит посмотреть, что получится: галочка «только посмотреть» ничего
+    не записывает.
+  </p>
+  <form method="post" action="/projects/{{ project.id }}/metrics/import" enctype="multipart/form-data">
+    <div class="grid2">
+      <div>
+        <label for="file">Файл выгрузки</label>
+        <input type="file" id="file" name="file" accept=".csv,.txt,.xlsx,.xlsm" required>
+      </div>
+      <div>
+        <label for="collected_at">Дата среза</label>
+        <input type="text" id="collected_at" name="collected_at" value="{{ today }}"
+               placeholder="ГГГГ-ММ-ДД">
+      </div>
+    </div>
+    <label style="margin-top:12px">
+      <input type="checkbox" name="dry_run" value="true" checked>
+      Только посмотреть, ничего не записывать
+    </label>
+
+    {% if table_headers %}
+    <details style="margin-top:14px" open>
+      <summary class="muted" style="cursor:pointer">Сопоставление колонок</summary>
+      <p class="hint" style="margin-top:10px">
+        Так система поняла файл «{{ filename }}». Если что-то не то, поправьте и загрузите
+        файл ещё раз, выбрав его заново.
+      </p>
+      <div class="grid2">
+        {% for key, label in fields.items() %}
+        <div>
+          <label for="mapping_{{ key }}">{{ label }}</label>
+          <select id="mapping_{{ key }}" name="mapping_{{ key }}">
+            <option value="">— не использовать —</option>
+            {% for header in table_headers %}
+            <option value="{{ header }}" {% if detected.get(key) == header %}selected{% endif %}>{{ header }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
+    <div class="row" style="margin-top:16px"><button type="submit">Загрузить</button></div>
+  </form>
+</div>
+
+{% if report %}
+<div class="card">
+  <h2>{% if report.dry_run %}Что получится{% else %}Результат импорта{% endif %}</h2>
+  <p class="hint">
+    Строк в файле: <b>{{ report.total }}</b> ·
+    сопоставлено: <b>{{ report.matched }}</b>
+    (по ссылке {{ report.matched_by_url }}, по заголовку {{ report.matched_by_title }}) ·
+    {% if report.dry_run %}будет добавлено{% else %}добавлено{% endif %}: <b>{{ report.created }}</b> ·
+    {% if report.dry_run %}будет обновлено{% else %}обновлено{% endif %}: <b>{{ report.updated }}</b>
+  </p>
+  {% if report.dry_run and report.matched %}
+  <p class="hint">Ничего не записано. Снимите галочку «только посмотреть» и загрузите файл снова.</p>
+  {% endif %}
+
+  {% if report.warnings %}
+  <div class="warns">
+    <ul>{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if report.unmatched %}
+  <h2 style="margin-top:18px; font-size:15px">Не нашлось в системе</h2>
+  <p class="hint">
+    Обычно это статьи, опубликованные мимо системы, или у нашей статьи не проставлена
+    ссылка на публикацию.
+  </p>
+  <table>
+    <tr><th>Заголовок из файла</th><th>Ссылка</th><th></th></tr>
+    {% for row in report.unmatched[:30] %}
+    <tr>
+      <td>{{ row.title or '—' }}</td>
+      <td class="muted" style="word-break:break-all">{{ row.url or '—' }}</td>
+      <td class="muted">{{ row.reason or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if report.unmatched | length > 30 %}
+  <p class="hint">…и ещё {{ report.unmatched | length - 30 }} строк.</p>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Статистика по статьям</h2>
+  <p class="hint">Последний срез и прирост к предыдущему.</p>
+  {% if articles %}
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Статья</th><th class="num">Показы</th><th class="num">Дочитывания</th>
+        <th class="num">Дочитываемость</th><th>Срез</th><th>Ссылка на публикацию</th>
+      </tr>
+      {% for a in articles %}
+      {% set m = views.get(a.id) %}
+      <tr>
+        <td><a href="/articles/{{ a.id }}">{{ a.title }}</a></td>
+        <td class="num">
+          {% if m and m.latest %}{{ m.views | ru_num }}
+            {% if m.delta('views') %}<span class="muted">{{ m.delta('views') | ru_delta }}</span>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="num">
+          {% if m and m.latest %}{{ m.reads | ru_num }}
+            {% if m.delta('reads') %}<span class="muted">{{ m.delta('reads') | ru_delta }}</span>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="num">{% if m %}{{ m.read_ratio | ru_pct }}{% else %}—{% endif %}</td>
+        <td class="muted nowrap">{% if m and m.latest %}{{ m.latest.collected_at | ru_date }}{% else %}—{% endif %}</td>
+        <td class="muted small break">{{ a.published_url or 'не указана' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty('Статей пока нет.', '/projects/' ~ project.id ~ '/generate', 'Сгенерировать первую') }}
+  {% endif %}
+</div>
+
+{% if jobs %}
+<div class="card">
+  <h2>Журнал фоновых задач</h2>
+  <p class="hint">
+    Планировщик (`python3 -m app.scheduler.runner`) раз в сутки добирает метки из TGTrack,
+    раз в неделю проверяет свежесть статистики.
+  </p>
+  <table>
+    <tr><th>Когда</th><th>Задача</th><th>Итог</th></tr>
+    {% for job in jobs %}
+    <tr>
+      <td class="muted">{{ job.started_at.strftime('%d.%m.%Y %H:%M') }}</td>
+      <td>{{ job.kind }}</td>
+      <td class="muted">{{ job.log or job.status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

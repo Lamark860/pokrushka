@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Статьи{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Статьи проекта «{{ project.name }}»</h2>
+  <p class="hint">Черновики и опубликованное — с цифрами по каждому тексту.</p>
+  {% if articles %}
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Заголовок</th><th>Площадка</th><th class="num">Показы</th><th class="num">Дочитывания</th>
+        <th class="num">Переходы</th><th class="num">Подписки</th><th>Статус</th>
+      </tr>
+      {% for a in articles %}
+      {% set m = views.get(a.id) %}
+      <tr>
+        <td>
+          <a href="/articles/{{ a.id }}">{{ a.title }}</a>
+          {% if a.warnings %}
+          <div class="muted small">
+            {{ a.warnings | length | ru_plural('замечание', 'замечания', 'замечаний') }}
+          </div>
+          {% endif %}
+        </td>
+        <td class="nowrap">{{ formats[a.platform].title if a.platform in formats else a.platform }}</td>
+        <td class="num">{% if m and m.latest %}{{ m.views | ru_num }}{% else %}—{% endif %}</td>
+        <td class="num">
+          {% if m and m.latest %}{{ m.reads | ru_num }}
+            {% if m.read_ratio is not none %}<span class="muted">· {{ m.read_ratio | ru_pct }}</span>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="num">{{ clicks.get(a.id, 0) | ru_num }}</td>
+        <td class="num">{{ subscribers.get(a.id, 0) | ru_num }}</td>
+        <td>{{ ui.status_tag(a) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty('Пока пусто.', '/projects/' ~ project.id ~ '/generate', 'Сгенерировать первый текст') }}
+  {% endif %}
+</div>
+{% endblock %}

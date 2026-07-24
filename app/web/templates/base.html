@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}База Маркетинг{% endblock %}</title>
+<style>
+/* Пульт оператора, а не сайт: главное здесь — цифры и их движение по воронке.
+   Отсюда моноширинные числа, плотная сетка и один рабочий акцент. */
+ :root {
+   --bg:#EDF1F6; --panel:#FFFFFF;
+   --ink:#0F1A2E; --ink2:#3D4A62; --muted:#78869C;
+   --line:#E2E7EF; --line2:#EDF1F6;
+   --accent:#2B44E8; --accent-soft:#EEF0FE;
+   --money:#0B8A5E; --alert:#B4581E; --alert-soft:#FDF3E7;
+   --danger:#B42318; --danger-soft:#FDF1F0;
+   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+   --radius:12px;
+ }
+ * { box-sizing:border-box; }
+ html { -webkit-text-size-adjust:100%; }
+ body { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin:0; background:var(--bg); color:var(--ink); line-height:1.5; font-size:14.5px;
+        -webkit-font-smoothing:antialiased; }
+ a { color:var(--accent); text-decoration:none; }
+ a:hover { text-decoration:underline; }
+ h1, h2, h3 { letter-spacing:-.015em; }
+
+ /* ---------------------------------------------------------------- шапка */
+ .top { background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+ .top__inner { max-width:1200px; margin:0 auto; padding:0 20px; display:flex; align-items:center;
+   gap:20px; min-height:56px; flex-wrap:wrap; }
+ .top__brand { font-weight:700; letter-spacing:-.02em; font-size:15px; display:flex; align-items:center; gap:9px; }
+ .top__mark { width:26px; height:26px; border-radius:7px; background:var(--ink); color:#fff;
+   display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+ .top__nav { display:flex; gap:2px; margin-left:auto; align-items:center; flex-wrap:wrap; }
+ .top__nav a { color:var(--ink2); font-size:14px; padding:6px 11px; border-radius:8px; font-weight:500; }
+ .top__nav a:hover { background:var(--line2); text-decoration:none; }
+ .top__nav a[aria-current="page"] { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+
+ .wrap { max-width:1200px; margin:0 auto; padding:22px 20px 80px; }
+
+ /* ---------------------------------------------------------------- панели */
+ .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+   padding:18px 20px; margin-bottom:16px; }
+ .card h2 { margin:0 0 3px; font-size:16px; font-weight:700; }
+ .hint { color:var(--muted); font-size:13px; margin:0 0 14px; max-width:76ch; }
+ .muted { color:var(--muted); }
+ .empty { color:var(--muted); font-size:14px; padding:6px 0 2px; }
+
+ /* ---------------------------------------------------------------- формы */
+ label { display:block; font-size:12.5px; color:var(--ink2); margin:12px 0 5px; font-weight:500; }
+ input[type=text], input[type=email], input[type=password], input[type=url], input[type=file],
+ textarea, select {
+   width:100%; padding:9px 11px; border:1px solid #D3DAE5; border-radius:9px; font:inherit;
+   background:#fff; color:var(--ink); }
+ input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+   outline:2px solid var(--accent); outline-offset:2px; }
+ textarea { min-height:92px; resize:vertical; }
+ input[readonly] { background:var(--line2); }
+
+ button, .btn { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:#fff;
+   border:1px solid var(--accent); border-radius:9px; padding:8px 15px; font:inherit; font-weight:500;
+   cursor:pointer; text-decoration:none; line-height:1.35; }
+ button:hover, .btn:hover { filter:brightness(1.06); text-decoration:none; }
+ button.ghost, .btn.ghost { background:#fff; color:var(--ink); border-color:#D3DAE5; }
+ button.ghost:hover, .btn.ghost:hover { background:var(--line2); filter:none; }
+ button.danger { background:#fff; color:var(--danger); border-color:#F0C2BD; }
+ button.danger:hover { background:var(--danger-soft); filter:none; }
+ button.small { padding:5px 10px; font-size:13px; }
+ .row { display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+
+ /* ---------------------------------------------------------------- таблицы */
+ table { width:100%; border-collapse:collapse; font-size:13.5px; }
+ th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line2); vertical-align:top; }
+ th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.05em;
+      border-bottom:1px solid var(--line); }
+ tr:last-child td { border-bottom:0; }
+ td.num, th.num { text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums;
+   font-size:13px; white-space:nowrap; }
+
+ .tag { display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:99px;
+   background:var(--accent-soft); color:var(--accent); font-weight:600; white-space:nowrap; }
+ .tag--demo { background:#FEF3C7; color:#92400E; }
+ .tag--ok { background:#E7F6EF; color:var(--money); }
+ .tag--off { background:var(--line2); color:var(--muted); }
+
+ .warns { background:var(--alert-soft); border:1px solid #F4DFC4; border-radius:var(--radius);
+   padding:13px 16px; margin:0 0 16px; font-size:13.5px; }
+ .warns ul { margin:6px 0 0; padding-left:18px; }
+ .warns li { color:var(--alert); }
+
+ .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+ @media (max-width:760px) { .grid2 { grid-template-columns:1fr; } }
+
+ /* ---------------------------------------------------------------- цифры */
+ .num { font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+
+ .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:16px; }
+ .kpi { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:13px 14px; }
+ .kpi__l { font-size:11.5px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+ /* Пропорциональные цифры: на крупном кегле моноширинные выглядят разреженными */
+ .kpi__v { font-size:26px; font-weight:700; margin-top:7px; line-height:1.05; letter-spacing:-.025em; }
+ .kpi__s { font-size:12px; margin-top:5px; color:var(--muted); }
+ .kpi--money .kpi__v { color:var(--money); }
+ @media (max-width:1000px) { .kpis { grid-template-columns:repeat(3,1fr); } }
+ @media (max-width:560px) { .kpis { grid-template-columns:repeat(2,1fr); } }
+
+ /* ---------------------------------------------------------------- воронка
+    Значения расходятся на пять порядков (24 400 → 1), поэтому полосы абсолютных
+    величин бессмысленны: хвост вырождается в одинаковые огрызки. Показываем числа
+    таблицей, а рисуем то, что сравнимо между шагами — конверсию против ориентира. */
+ .fn { width:100%; border-collapse:collapse; }
+ .fn th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+   font-weight:600; padding:0 10px 8px; border-bottom:1px solid var(--line); text-align:left; }
+ .fn td { padding:11px 10px; border-bottom:1px solid var(--line2); vertical-align:middle; }
+ .fn tr:last-child td { border-bottom:0; }
+ .fn__step { font-size:13.5px; font-weight:600; }
+ .fn__step small { display:block; color:var(--muted); font-weight:400; font-size:11.5px; margin-top:1px; }
+ .fn__count { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:15px;
+   font-weight:600; text-align:right; white-space:nowrap; }
+ .fn__lost { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:12.5px;
+   color:var(--muted); text-align:right; white-space:nowrap; }
+
+ /* Сама воронка: слева сужающиеся ступени, справа подписи напротив каждой.
+    Ширина пропорциональна числу людей — сужение и есть сообщение. */
+ .funnel { display:grid; grid-template-columns:minmax(200px, 300px) 1fr; gap:22px; align-items:start;
+   margin-bottom:6px; }
+ .funnel__svg { width:100%; height:auto; display:block; }
+ /* Границы ступеней — волосяные линии по фону, а не рамки: силуэт остаётся цельным */
+ .funnel__div { stroke:var(--panel); stroke-width:1.5; vector-effect:non-scaling-stroke; }
+ .funnel__div--drop { stroke:var(--alert); stroke-width:2; }
+ .funnel__labels { display:flex; flex-direction:column; }
+ .funnel__label { display:grid; grid-template-columns:1fr auto auto; gap:14px; align-items:center;
+   height:46px; border-bottom:1px solid var(--line2); }
+ .funnel__label:last-child { border-bottom:0; }
+ .funnel__name { font-size:13.5px; font-weight:600; line-height:1.2; }
+ .funnel__name small { display:block; color:var(--muted); font-weight:400; font-size:11.5px; }
+ .funnel__count { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:15px;
+   font-weight:600; text-align:right; }
+ .funnel__conv { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12.5px;
+   color:var(--muted); min-width:118px; justify-content:flex-end; }
+ .funnel__conv--drop { color:var(--alert); font-weight:600; }
+ @media (max-width:760px) { .funnel { grid-template-columns:1fr; } .funnel__svg { display:none; } }
+
+ /* Мерка: заливка — фактическая конверсия, риска — ожидаемая. */
+ .meter { display:flex; align-items:center; gap:10px; min-width:190px; }
+ .meter__track { position:relative; flex:1; height:6px; background:var(--line2); border-radius:99px; }
+ .meter__fill { height:100%; border-radius:99px; background:var(--accent); }
+ .meter__mark { position:absolute; top:-3px; width:1px; height:12px; background:#B6C0D0; }
+ .meter__val { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:13px;
+   min-width:52px; text-align:right; }
+ .meter--low .meter__fill { background:var(--alert); }
+ .meter--low .meter__val { color:var(--alert); font-weight:600; }
+ .fn__flag { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--alert);
+   background:var(--alert-soft); border:1px solid #F4DFC4; border-radius:99px; padding:2px 9px;
+   white-space:nowrap; }
+ @media (max-width:760px) {
+   .fn, .fn tbody, .fn tr, .fn td { display:block; width:100%; }
+   .fn thead { display:none; }
+   .fn tr { border-bottom:1px solid var(--line2); padding:8px 0; }
+   .fn td { border:0; padding:3px 0; }
+   .fn__count, .fn__lost { text-align:left; }
+ }
+
+ /* ---------------------------------------------------------------- полосы и топ */
+ .bar { display:grid; grid-template-columns:168px 1fr 128px; align-items:center; gap:12px; margin:9px 0; }
+ .bar__track { height:8px; background:var(--line2); border-radius:99px; overflow:hidden; }
+ .bar__fill { height:100%; border-radius:99px; background:var(--accent); }
+ .bar__val { text-align:right; font-size:13px; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+ @media (max-width:760px) { .bar { grid-template-columns:1fr; } .bar__val { text-align:left; } }
+
+ .win { display:grid; grid-template-columns:26px 1fr 96px; align-items:center; gap:12px;
+   padding:11px 0; border-bottom:1px solid var(--line2); }
+ .win:last-child { border-bottom:0; }
+ .win__rank { width:24px; height:24px; border-radius:7px; background:var(--accent-soft); color:var(--accent);
+   display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12.5px;
+   font-family:var(--mono); }
+ .win__t { font-weight:600; font-size:13.5px; line-height:1.35; }
+ .win__s { color:var(--muted); font-size:12px; margin-top:2px; }
+ .win__v { text-align:right; font-size:13px; font-family:var(--mono); font-variant-numeric:tabular-nums;
+   color:var(--ink2); }
+
+ /* ---------------------------------------------------------------- текст статьи */
+ .preview { background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px 22px;
+   font-size:15px; line-height:1.62; }
+ .preview h1 { font-size:23px; line-height:1.25; margin-top:0; }
+ .preview h2 { font-size:17px; margin-top:26px; }
+ .preview a { word-break:break-word; }
+
+ details > summary { cursor:pointer; color:var(--ink2); font-size:13.5px; font-weight:500; }
+ details > summary:hover { color:var(--accent); }
+
+ /* ---------------------------------------------------------------- утилиты
+    Чтобы в шаблонах не было россыпи style="margin-top:14px" — правки в одном месте. */
+ .inline { margin:0; display:inline-block; }
+ .mt { margin-top:14px; }
+ .mt-s { margin-top:8px; }
+ .mt-l { margin-top:20px; }
+ .mb-0 { margin-bottom:0; }
+ .nowrap { white-space:nowrap; }
+ .break { word-break:break-all; }
+ .small { font-size:12.5px; }
+ .field__hint { font-size:12px; color:var(--muted); margin-top:4px; }
+ .cell-narrow { width:1%; white-space:nowrap; }
+ .scroll-box { max-height:230px; overflow:auto; border:1px solid var(--line); border-radius:10px;
+   padding:11px 13px; }
+ .table-wrap { overflow-x:auto; }
+
+ @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+{% if user is defined and user %}
+<div class="top">
+  <div class="top__inner">
+    <div class="top__brand"><span class="top__mark">Б</span> База Маркетинг</div>
+    <nav class="top__nav">
+      {% if project is defined and project %}
+        {% set path = request.url.path %}
+        <a href="/projects/{{ project.id }}/dashboard"
+           {% if path.endswith('/dashboard') %}aria-current="page"{% endif %}>Дашборд</a>
+        <a href="/projects/{{ project.id }}/generate"
+           {% if path.endswith('/generate') %}aria-current="page"{% endif %}>Сгенерировать</a>
+        <a href="/projects/{{ project.id }}/articles"
+           {% if path.endswith('/articles') %}aria-current="page"{% endif %}>Статьи</a>
+        <a href="/projects/{{ project.id }}/metrics"
+           {% if path.endswith('/metrics') %}aria-current="page"{% endif %}>Статистика</a>
+        <a href="/projects/{{ project.id }}"
+           {% if path == '/projects/' ~ project.id %}aria-current="page"{% endif %}>Настройки</a>
+      {% endif %}
+      <form method="post" action="/logout" style="margin:0 0 0 8px">
+        <button class="ghost small">Выйти</button>
+      </form>
+    </nav>
+  </div>
+</div>
+{% endif %}
+<div class="wrap">{% block content %}{% endblock %}</div>
+</body>
+</html>

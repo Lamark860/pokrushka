@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Дашборд{% endblock %}
+{% block content %}
+
+{% set views = funnel.get('views') %}
+{% set reads = funnel.get('reads') %}
+{% set clicks = funnel.get('clicks') %}
+{% set subs = funnel.get('subscribers') %}
+{% set leads = funnel.get('leads') %}
+{% set bottleneck = funnel.stages | selectattr('is_bottleneck') | first %}
+
+<div class="kpis">
+  {{ ui.kpi('Показы', views.count | ru_num, 'на ' ~ funnel.articles ~ ' статьях') }}
+  {{ ui.kpi('Дочитывания', reads.count | ru_num,
+            (views.conversion | ru_pct ~ ' дочитываемость') if views.conversion else 'нет данных') }}
+  {{ ui.kpi('Переходы', clicks.count | ru_num,
+            ('CTR ' ~ funnel.ctr | ru_pct(2)) if funnel.ctr is not none else 'считаем по показам') }}
+  {{ ui.kpi('Подписки', subs.count | ru_num,
+            (clicks.conversion | ru_pct ~ ' из переходов') if clicks.conversion else 'из всех источников') }}
+  {{ ui.kpi('Заявки', leads.count | ru_num, 'диагностики с органики') }}
+  {{ ui.kpi('Выручка', funnel.revenue | ru_money,
+            (funnel.revenue_per_article | ru_money ~ ' на публикацию') if funnel.published > 1 else 'с органики',
+            money=true) }}
+</div>
+
+<div class="card">
+  <h2>Воронка</h2>
+  <p class="hint">
+    Путь читателя от статьи до оплаты услуги. Ступени сужаются по мере потерь: ширина
+    сглажена логарифмически, иначе нижние шаги на таком разбросе были бы неразличимы.
+    Точные значения — справа и в разделе «Показать цифрами».
+  </p>
+
+  {% set shape = funnel.shape() %}
+  {% if shape %}
+  <div class="funnel">
+    {# Высота в такт с подписями справа: строка подписи — 46px, ступень — тоже #}
+    <svg class="funnel__svg" viewBox="0 0 100 {{ shape.height }}" preserveAspectRatio="none"
+         style="height: {{ shape.height }}px"
+         role="img" aria-label="Воронка от показов до продаж">
+      <defs>
+        <linearGradient id="funnelFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#3C5C9E"></stop>
+          <stop offset="100%" stop-color="#B9CDE9"></stop>
+        </linearGradient>
+      </defs>
+      <path d="{{ shape.outline }}" fill="url(#funnelFill)"></path>
+      {# Границы ступеней: тонкие светлые линии, у узкого места — цвет предупреждения #}
+      {% for seg in shape.segments %}
+        {% if not loop.first %}
+        <line x1="{{ 50 - seg.width_top / 2 }}" y1="{{ seg.y_top }}"
+              x2="{{ 50 + seg.width_top / 2 }}" y2="{{ seg.y_top }}"
+              class="funnel__div {% if shape.segments[loop.index0 - 1].stage.is_bottleneck %}funnel__div--drop{% endif %}"></line>
+        {% endif %}
+      {% endfor %}
+    </svg>
+    <div class="funnel__labels">
+      {% for seg in shape.segments %}
+      <div class="funnel__label">
+        <div class="funnel__name">{{ seg.stage.title }}<small>{{ seg.stage.note }}</small></div>
+        <div class="funnel__count">{{ seg.stage.count | ru_num }}</div>
+        <div class="funnel__conv">
+          {% if seg.stage.conversion is not none %}
+            <span class="{% if seg.stage.is_bottleneck %}funnel__conv--drop{% endif %}">
+              ↓ {{ seg.stage.conversion | ru_pct }}
+            </span>
+            {% if seg.stage.is_bottleneck %}<span class="fn__flag">⚠ узкое место</span>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <details class="mt">
+    <summary>Показать цифрами</summary>
+    <div class="table-wrap mt-s">
+      <table class="fn">
+        <thead>
+          <tr>
+            <th>Шаг</th><th style="text-align:right">Дошло</th>
+            <th>Конверсия в следующий</th><th style="text-align:right">Потеряно</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stage in funnel.stages %}{{ ui.funnel_row(stage) }}{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  {% if bottleneck %}
+  <div class="warns mt">
+    <b>Слабое звено — «{{ bottleneck.title.lower() }}».</b>
+    Дальше проходит {{ bottleneck.conversion | ru_pct }} при ожидаемых {{ bottleneck.benchmark }}%.
+    Чинить воронку стоит с этого шага: здесь теряется больше всего людей.
+  </div>
+  {% endif %}
+
+  {% if orphan_subscribers %}
+  <p class="hint mb-0 mt">
+    Ещё {{ orphan_subscribers | ru_plural('подписчик пришёл', 'подписчика пришли', 'подписчиков пришли') }}
+    мимо статей — по основной ссылке канала или из поиска.
+  </p>
+  {% endif %}
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2>Площадки</h2>
+    <p class="hint">Где статьи собирают внимание и насколько глубоко их читают.</p>
+    {% if platforms %}
+      {% set max_views = platforms | map(attribute='views') | max %}
+      {% for p in platforms %}
+      <div class="bar">
+        <div>{{ p.title }} <span class="muted small">· {{ p.articles }} ст.</span></div>
+        <div class="bar__track">
+          <div class="bar__fill" style="width: {{ (p.views / max_views * 100) | round | int if max_views else 0 }}%"></div>
+        </div>
+        <div class="bar__val">
+          {{ p.views | ru_num }}
+          {% if p.read_ratio is not none %}<span class="muted">· {{ p.read_ratio | ru_pct }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      {{ ui.empty('Данных пока нет.', '/projects/' ~ project.id ~ '/metrics', 'Загрузить статистику') }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Что зашло лучше всего</h2>
+    <p class="hint">
+      Очки складываются из дочитываний, подписок, заявок и продаж. Тексты лидеров генератор
+      берёт как образец для новых статей.
+    </p>
+    {% if top %}
+      {% for item in top %}
+      <div class="win">
+        <div class="win__rank">{{ loop.index }}</div>
+        <div>
+          <div class="win__t"><a href="/articles/{{ item.article.id }}">{{ item.article.title }}</a></div>
+          <div class="win__s">
+            {{ item.reads | ru_num }} дочитываний · {{ item.subscribers }} подписок
+            {% if item.sub_conversion %}· конверсия {{ item.sub_conversion | ru_pct(2) }}{% endif %}
+          </div>
+        </div>
+        <div class="win__v">{{ item.score }} очк.</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      {{ ui.empty('Сравнивать пока нечего: нужны метрики или подписки.') }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Заявки и продажи</h2>
+  <p class="hint">
+    Вносятся руками: человек приходит в личку, а не в форму. Укажите его Telegram-username —
+    система сама поймёт, какая статья его привела.
+  </p>
+  <form method="post" action="/projects/{{ project.id }}/deals">
+    <div class="grid2">
+      <div>
+        <label for="stage">Что это</label>
+        <select id="stage" name="stage">
+          {% for s in stages %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      {{ ui.field('day', 'Дата', today) }}
+      {{ ui.field('username', 'Telegram-username', '', '@vasya',
+                  hint='Если человек подписан по нашей ссылке, статья подставится сама') }}
+      <div>
+        <label for="article_id">Статья</label>
+        <select id="article_id" name="article_id">
+          <option value="">— определить по username —</option>
+          {% for a in articles %}<option value="{{ a.id }}">{{ a.title }}</option>{% endfor %}
+        </select>
+        <div class="field__hint">Выберите, если знаете точно: это важнее username</div>
+      </div>
+      {{ ui.field('niche', 'Ниша клиента', '', 'Остекление балконов') }}
+      {{ ui.field('service', 'Услуга', '', 'Настройка таргета') }}
+      {{ ui.field('amount', 'Сумма, ₽', '0') }}
+    </div>
+    <div class="row mt"><button type="submit">Добавить</button></div>
+  </form>
+
+  {% if deals %}
+  <div class="table-wrap mt-l">
+    <table>
+      <tr>
+        <th>Дата</th><th>Что</th><th>Ниша и услуга</th><th class="num">Сумма</th>
+        <th>Статья</th><th></th>
+      </tr>
+      {% for d in deals %}
+      <tr>
+        <td class="muted nowrap">{{ d.day | ru_date }}</td>
+        <td>{{ d.stage }}</td>
+        <td>{{ d.niche or '—' }}{% if d.service %} <span class="muted">· {{ d.service }}</span>{% endif %}</td>
+        <td class="num">{{ d.amount | ru_money }}</td>
+        <td class="muted">
+          {% if d.article_id %}<a href="/articles/{{ d.article_id }}">статья №{{ d.article_id }}</a>
+          {% else %}не привязана{% endif %}
+        </td>
+        <td class="cell-narrow">{{ ui.delete_form('/deals/' ~ d.id ~ '/delete') }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Все статьи</h2>
+  <p class="hint">Полная картина по каждому тексту: от показов до денег.</p>
+  {% if stats %}
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Статья</th><th class="num">Показы</th><th class="num">Дочитывания</th>
+        <th class="num">Переходы</th><th class="num">Подписки</th><th class="num">Заявки</th>
+        <th class="num">Выручка</th><th class="num">Очки</th>
+      </tr>
+      {% for item in stats %}
+      <tr>
+        <td><a href="/articles/{{ item.article.id }}">{{ item.article.title }}</a></td>
+        <td class="num">{{ item.views | ru_num }}</td>
+        <td class="num">
+          {{ item.reads | ru_num }}
+          {% if item.read_ratio is not none %}<span class="muted">· {{ item.read_ratio | ru_pct }}</span>{% endif %}
+        </td>
+        <td class="num">{{ item.clicks | ru_num }}</td>
+        <td class="num">{{ item.subscribers | ru_num }}</td>
+        <td class="num">{{ item.leads | ru_num }}</td>
+        <td class="num">{{ item.revenue | ru_money }}</td>
+        <td class="num">{{ item.score }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty('Статей пока нет.', '/projects/' ~ project.id ~ '/generate', 'Сгенерировать первую') }}
+  {% endif %}
+</div>
+
+{% endblock %}

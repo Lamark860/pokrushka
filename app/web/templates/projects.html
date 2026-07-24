@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Проекты{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Проекты</h2>
+  <p class="hint">Один проект — один канал со своей контент-ДНК, ключами и статьями.</p>
+  {% if projects %}
+  <table>
+    <tr><th>Название</th><th>Каналы</th><th>Режим</th></tr>
+    {% for p in projects %}
+    <tr>
+      <td><a href="/projects/{{ p.id }}">{{ p.name }}</a></td>
+      <td class="muted">
+        {{ p.tg_channel_url or '' }}{% if p.tg_channel_url and p.max_channel_url %}, {% endif %}{{ p.max_channel_url or '' }}
+        {% if not p.tg_channel_url and not p.max_channel_url %}не заданы{% endif %}
+      </td>
+      <td>{% if p.is_demo %}<span class="tag tag--demo">демо</span>{% else %}<span class="tag tag--ok">боевой</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Пока ни одного проекта.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Новый проект</h2>
+  <p class="hint">Создастся сразу с контент-ДНК «Базы Маркетинг»: голос, кейсы, посты-эталоны, темник.</p>
+  <form method="post" action="/projects">
+    <label for="name">Название</label>
+    <input type="text" id="name" name="name" placeholder="База Маркетинг" required>
+    <div class="row" style="margin-top:14px"><button type="submit">Создать</button></div>
+  </form>
+</div>
+{% endblock %}

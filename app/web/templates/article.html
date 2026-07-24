@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ article.title }}{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>{{ article.title }}</h2>
+  <p class="hint">
+    {{ fmt.title }} · {{ article.chars }} символов (рамка {{ fmt.min_chars }}-{{ fmt.max_chars }}) ·
+    {{ 'написал Claude' if article.via == 'llm' else 'шаблон-фолбэк' }}{% if article.model %} ({{ article.model }}){% endif %}
+    {% if article.status == 'published' %} · <span class="tag tag--ok">опубликована</span>{% endif %}
+  </p>
+
+  {% if article.subtitle %}
+  <label>Подзаголовок{% if fmt.wants_subtitle %} (vc.ru просит его отдельным полем){% endif %}</label>
+  <div class="row">
+    <input type="text" id="src-subtitle" value="{{ article.subtitle }}" readonly>
+  </div>
+  {% endif %}
+
+  <div class="row mt">
+    {% if fmt.copy_as == 'html' %}
+      <button data-copy="src-html">Скопировать текст для {{ fmt.title }}</button>
+      <button class="ghost" data-copy="src-md">Скопировать как Markdown</button>
+    {% else %}
+      <button data-copy="src-md">Скопировать текст для {{ fmt.title }}</button>
+      <button class="ghost" data-copy="src-html">Скопировать как HTML</button>
+    {% endif %}
+    <button class="ghost" data-copy="src-title">Заголовок</button>
+    {% if article.subtitle %}<button class="ghost" data-copy="src-subtitle">Подзаголовок</button>{% endif %}
+  </div>
+  <p class="hint mt-s mb-0" id="copy-status">&nbsp;</p>
+</div>
+
+{% if article.warnings %}
+<div class="warns">
+  <b>Замечания валидатора</b>
+  <ul>{% for w in article.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Статистика площадки</h2>
+  <p class="hint">
+    Цифры приносим из Студии Дзена или vc.ru: <a href="/projects/{{ article.project_id }}/metrics">выгрузкой файла</a>
+    или руками. Каждый ввод — срез за день, поэтому виден прирост.
+  </p>
+
+  {% if metrics and metrics.latest %}
+  <table>
+    <tr><th></th><th class="num">Последний срез</th><th class="num">Прирост за неделю</th></tr>
+    <tr>
+      <td>Показы</td><td class="num">{{ metrics.latest.views | ru_num }}</td>
+      <td class="num muted">{{ metrics.delta('views') | ru_delta }}</td>
+    </tr>
+    <tr>
+      <td>Дочитывания</td><td class="num">{{ metrics.latest.reads | ru_num }}</td>
+      <td class="num muted">{{ metrics.delta('reads') | ru_delta }}</td>
+    </tr>
+    <tr>
+      <td>Дочитываемость</td>
+      <td class="num">{{ metrics.read_ratio | ru_pct }}</td>
+      <td class="num muted">—</td>
+    </tr>
+    <tr>
+      <td>Лайки, комментарии, репосты</td>
+      <td class="num">{{ metrics.latest.likes }} · {{ metrics.latest.comments }} · {{ metrics.latest.reposts }}</td>
+      <td class="num muted">—</td>
+    </tr>
+  </table>
+  <p class="hint mt-s mb-0">
+    Срез от {{ metrics.latest.collected_at | ru_date }}
+    ({{ 'из файла' if metrics.latest.source == 'import' else 'введён руками' }}),
+    всего {{ snapshots | length | ru_plural('срез', 'среза', 'срезов') }}.
+  </p>
+  {% else %}
+    {{ ui.empty('Цифр пока нет — загрузите выгрузку или введите вручную ниже.') }}
+  {% endif %}
+
+  <details style="margin-top:14px">
+    <summary class="muted" style="cursor:pointer">Ввести цифры руками</summary>
+    <form method="post" action="/articles/{{ article.id }}/metrics" style="margin-top:12px">
+      <div class="grid2">
+        <div><label for="views">Показы</label><input type="text" id="views" name="views"></div>
+        <div><label for="reads">Дочитывания</label><input type="text" id="reads" name="reads"></div>
+        <div><label for="likes">Лайки</label><input type="text" id="likes" name="likes"></div>
+        <div><label for="comments">Комментарии</label><input type="text" id="comments" name="comments"></div>
+        <div><label for="reposts">Репосты</label><input type="text" id="reposts" name="reposts"></div>
+        <div><label for="metrics_date">Дата среза</label>
+          <input type="text" id="metrics_date" name="collected_at" value="{{ today }}"></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button type="submit">Сохранить срез</button></div>
+    </form>
+
+    {% if snapshots %}
+    <table style="margin-top:16px">
+      <tr><th>Дата</th><th>Показы</th><th>Дочитывания</th><th>Источник</th><th></th></tr>
+      {% for s in snapshots %}
+      <tr>
+        <td>{{ s.collected_at.strftime('%d.%m.%Y') }}</td>
+        <td>{{ s.views }}</td>
+        <td>{{ s.reads }}</td>
+        <td class="muted">{{ 'файл' if s.source == 'import' else 'руками' }}</td>
+        <td style="width:1%">
+          <form method="post" action="/articles/{{ article.id }}/metrics/{{ s.id }}/delete" style="margin:0">
+            <button class="danger">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </details>
+</div>
+
+{% if links %}
+<div class="card">
+  <h2>Трекинг</h2>
+  <p class="hint">
+    {% if project.track_clicks %}
+      Ссылки в тексте ведут через нас — так считаются переходы. Telegram кликов не отдаёт,
+      только факт вступления.
+    {% else %}
+      Счётчик кликов выключен: в тексте стоят прямые ссылки, считаются только подписки.
+    {% endif %}
+  </p>
+  <table>
+    <tr><th>Куда</th><th>Переходы</th><th>Ссылка</th></tr>
+    {% for link in links %}
+    <tr>
+      <td>
+        {{ link_labels.get(link.kind, link.kind) }}
+        {% if link.revoked_at %}<span class="tag">отозвана</span>{% endif %}
+      </td>
+      <td>{{ link.clicks }}</td>
+      <td class="muted" style="word-break:break-all; font-size:12px">
+        {% if project.track_clicks %}/r/{{ link.code }} → {% endif %}{{ link.url }}
+        {% if link.invite_name %}<br>имя ссылки: «{{ link.invite_name }}»{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="hint" style="margin:14px 0 0">
+    Подписок с этой статьи: <b>{{ subscribers }}</b>.
+    {% if not links | selectattr('invite_name') | list %}
+      Пригласительной ссылки нет — подписки к статье не привяжутся, пока Артур не даст
+      бота и ID канала.
+    {% endif %}
+  </p>
+</div>
+{% endif %}
+
+{% if article.density %}
+<div class="card">
+  <h2>Плотность ключевых запросов</h2>
+  <p class="hint">Ориентир 2-3%. Ниже — ключ почти не звучит, выше — переспам.</p>
+  <table>
+    <tr><th>Запрос</th><th>Плотность</th></tr>
+    {% for phrase, value in article.density.items() %}
+    <tr><td>{{ phrase }}</td><td>{{ value }}%</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Текст</h2>
+  <div class="preview">{{ article.body_html | safe }}</div>
+</div>
+
+<div class="card">
+  <h2>После публикации</h2>
+  <p class="hint">Опубликовали руками — вставьте сюда ссылку, чтобы к статье цеплялась статистика.</p>
+  <form method="post" action="/articles/{{ article.id }}/publish">
+    <label for="published_url">Ссылка на публикацию</label>
+    <input type="text" id="published_url" name="published_url" value="{{ article.published_url or '' }}"
+           placeholder="https://dzen.ru/a/...">
+    <div class="row" style="margin-top:12px">
+      <button type="submit">Отметить опубликованной</button>
+      <a class="btn ghost" href="/projects/{{ article.project_id }}/articles">К списку</a>
+    </div>
+  </form>
+  <div class="row" style="margin-top:12px">
+    <form method="post" action="/articles/{{ article.id }}/make-example" style="margin:0">
+      <button class="ghost" title="Текст пойдёт в примеры для генератора">Сделать эталоном</button>
+    </form>
+    <form method="post" action="/articles/{{ article.id }}/delete" style="margin:0"
+          onsubmit="return confirm('Удалить черновик безвозвратно?')">
+      <button class="danger">Удалить черновик</button>
+    </form>
+  </div>
+</div>
+
+<textarea id="src-md" hidden>{{ article.body_md }}</textarea>
+<textarea id="src-html" hidden>{{ article.body_html }}</textarea>
+<input type="text" id="src-title" value="{{ article.title }}" hidden>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var node = document.getElementById(btn.dataset.copy);
+    var status = document.getElementById('copy-status');
+    navigator.clipboard.writeText(node.value).then(function () {
+      status.textContent = 'Скопировано: ' + btn.textContent.trim();
+    }, function () {
+      node.hidden = false; node.select();
+      status.textContent = 'Браузер не дал доступ к буферу — текст выделен, нажмите Ctrl+C';
+    });
+  });
+});
+</script>
+{% endblock %}

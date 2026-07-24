@@ -1,0 +1,79 @@
+{# Общие блоки интерфейса. Меняем разметку здесь — меняется везде. #}
+
+{% macro kpi(label, value, sub='', money=false) %}
+<div class="kpi {% if money %}kpi--money{% endif %}">
+  <div class="kpi__l">{{ label }}</div>
+  <div class="kpi__v">{{ value }}</div>
+  {% if sub %}<div class="kpi__s">{{ sub }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{# Строка воронки: числа читаются как числа, а рисуется сравнимая величина —
+   конверсия против ориентира. Риска на мерке показывает ожидаемый уровень. #}
+{% macro funnel_row(stage) %}
+<tr>
+  <td class="fn__step">{{ stage.title }}<small>{{ stage.note }}</small></td>
+  <td class="fn__count">{{ stage.count | ru_num }}</td>
+  <td>
+    {% if stage.conversion is not none %}
+    <div class="meter {% if stage.is_bottleneck %}meter--low{% endif %}">
+      <div class="meter__track">
+        <div class="meter__fill" style="width: {{ [stage.conversion, 100] | min | round(1) }}%"></div>
+        {% if stage.benchmark %}
+        <div class="meter__mark" style="left: {{ [stage.benchmark, 100] | min }}%"
+             title="Ожидаемая конверсия {{ stage.benchmark }}%"></div>
+        {% endif %}
+      </div>
+      <div class="meter__val">{{ stage.conversion | ru_pct }}</div>
+    </div>
+    {% else %}
+    <span class="muted small">—</span>
+    {% endif %}
+  </td>
+  <td class="fn__lost">{% if stage.lost %}−{{ stage.lost | ru_num }}{% else %}—{% endif %}</td>
+  <td>
+    {% if stage.is_bottleneck %}
+    <span class="fn__flag">⚠ узкое место</span>
+    {% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro warnings(items, title='') %}
+{% if items %}
+<div class="warns">
+  {% if title %}<b>{{ title }}</b>{% endif %}
+  <ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# Пустой экран — приглашение к действию, а не «нет данных». #}
+{% macro empty(text, action_url='', action_label='') %}
+<p class="empty">
+  {{ text }}
+  {% if action_url %}<a href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+</p>
+{% endmacro %}
+
+{% macro status_tag(article) %}
+{% if article.status == 'published' %}<span class="tag tag--ok">опубликована</span>
+{% else %}<span class="tag tag--off">черновик</span>{% endif %}
+{% endmacro %}
+
+{% macro delete_form(action, label='Удалить', confirm='') %}
+<form method="post" action="{{ action }}" class="inline"
+      {% if confirm %}onsubmit="return confirm('{{ confirm }}')"{% endif %}>
+  <button class="danger small">{{ label }}</button>
+</form>
+{% endmacro %}
+
+{# Поле формы: подпись, контрол и необязательная подсказка под ним. #}
+{% macro field(name, label, value='', placeholder='', type='text', hint='') %}
+<div>
+  <label for="{{ name }}">{{ label }}</label>
+  <input type="{{ type }}" id="{{ name }}" name="{{ name }}" value="{{ value }}"
+         placeholder="{{ placeholder }}">
+  {% if hint %}<div class="field__hint">{{ hint }}</div>{% endif %}
+</div>
+{% endmacro %}
