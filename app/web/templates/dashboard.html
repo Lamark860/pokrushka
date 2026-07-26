@@ -8,71 +8,116 @@
 {% set clicks = funnel.get('clicks') %}
 {% set subs = funnel.get('subscribers') %}
 {% set leads = funnel.get('leads') %}
-{% set bottleneck = funnel.stages | selectattr('is_bottleneck') | first %}
+{% set bottleneck = funnel.worst_step %}
+{% set read_step = funnel.step('views') %}
 
-<div class="kpis">
-  {{ ui.kpi('Показы', views.count | ru_num, 'на ' ~ funnel.articles ~ ' статьях') }}
-  {{ ui.kpi('Дочитывания', reads.count | ru_num,
-            (views.conversion | ru_pct ~ ' дочитываемость') if views.conversion else 'нет данных') }}
-  {{ ui.kpi('Переходы', clicks.count | ru_num,
-            ('CTR ' ~ funnel.ctr | ru_pct(2)) if funnel.ctr is not none else 'считаем по показам') }}
-  {{ ui.kpi('Подписки', subs.count | ru_num,
-            (clicks.conversion | ru_pct ~ ' из переходов') if clicks.conversion else 'из всех источников') }}
-  {{ ui.kpi('Заявки', leads.count | ru_num, 'диагностики с органики') }}
-  {{ ui.kpi('Выручка', funnel.revenue | ru_money,
-            (funnel.revenue_per_article | ru_money ~ ' на публикацию') if funnel.published > 1 else 'с органики',
-            money=true) }}
+{# Деньги открывают экран: он же служит доказательством для заказчиков Артура,
+   а раньше выручка стояла шестой плиткой в ряду одинаковых. Остальные числа —
+   столбиками по центру. Подписи говорят, по скольким статьям посчитано: ноль в
+   колонке «переходы» чаще значит «прибор не стоит», а не «никто не кликнул». #}
+<div class="card">
+  <div class="hero">
+    <div>
+      <div class="hero__v">{{ funnel.revenue | ru_money }}</div>
+      <div class="hero__l">
+        принесла органика
+        {%- if funnel.published > 1 %} — {{ funnel.revenue_per_article | ru_money }} на публикацию
+        {%- else %} с {{ funnel.articles | ru_plural('текста', 'текстов', 'текстов') }}{% endif %}
+      </div>
+    </div>
+    <div class="hero__rest">
+      <div>
+        <div class="hero__n">{{ views.count | ru_num }}</div>
+        <div class="hero__c">показов</div>
+      </div>
+      <div>
+        <div class="hero__n">{{ reads.count | ru_num }}</div>
+        <div class="hero__c">{% if read_step.measured %}дочитываний · {{ read_step.conversion | ru_pct }}
+          {%- else %}дочитываний{% endif %}</div>
+      </div>
+      <div>
+        <div class="hero__n">{{ clicks.count | ru_num }}</div>
+        <div class="hero__c">{% if funnel.ctr is not none %}переходов · CTR {{ funnel.ctr | ru_pct(2) }}
+          {%- else %}переходов · не считается{% endif %}</div>
+      </div>
+      <div>
+        <div class="hero__n">{{ subs.count | ru_num }}</div>
+        <div class="hero__c">подписок</div>
+      </div>
+      <div>
+        <div class="hero__n">{{ leads.count | ru_num }}</div>
+        <div class="hero__c">заявок</div>
+      </div>
+      <div>
+        <div class="hero__n">{{ funnel.articles }}</div>
+        <div class="hero__c">текстов</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="card">
-  <h2>Воронка</h2>
+  <h2>Путь читателя</h2>
+  {% set measured_steps = funnel.steps | selectattr('measured') | list %}
+  {% if not measured_steps %}
+  <p class="hint mb-0">Воронка появится, когда будут первые цифры.</p>
+  {{ ui.empty('Пока измерять нечего.', '/projects/' ~ project.id ~ '/metrics',
+              'Загрузить статистику') }}
+  {% else %}
   <p class="hint">
-    Путь читателя от статьи до оплаты услуги. Ступени сужаются по мере потерь: ширина
-    сглажена логарифмически, иначе нижние шаги на таком разбросе были бы неразличимы.
-    Точные значения — справа и в разделе «Показать цифрами».
+    Шаги показаны по отдельности, потому что напрямую они несравнимы: 41% дочитываний и
+    2% переходов — обе цифры нормальные, каждая для своего шага. Поэтому полоса рисует не
+    число людей, а отставание от ориентира; засечка посередине — ожидаемый уровень.
   </p>
 
-  {% set shape = funnel.shape() %}
-  {% if shape %}
-  <div class="funnel">
-    {# Высота в такт с подписями справа: строка подписи — 46px, ступень — тоже #}
-    <svg class="funnel__svg" viewBox="0 0 100 {{ shape.height }}" preserveAspectRatio="none"
-         style="height: {{ shape.height }}px"
-         role="img" aria-label="Воронка от показов до продаж">
-      <defs>
-        <linearGradient id="funnelFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#3C5C9E"></stop>
-          <stop offset="100%" stop-color="#B9CDE9"></stop>
-        </linearGradient>
-      </defs>
-      <path d="{{ shape.outline }}" fill="url(#funnelFill)"></path>
-      {# Границы ступеней: тонкие светлые линии, у узкого места — цвет предупреждения #}
-      {% for seg in shape.segments %}
-        {% if not loop.first %}
-        <line x1="{{ 50 - seg.width_top / 2 }}" y1="{{ seg.y_top }}"
-              x2="{{ 50 + seg.width_top / 2 }}" y2="{{ seg.y_top }}"
-              class="funnel__div {% if shape.segments[loop.index0 - 1].stage.is_bottleneck %}funnel__div--drop{% endif %}"></line>
-        {% endif %}
-      {% endfor %}
-    </svg>
-    <div class="funnel__labels">
-      {% for seg in shape.segments %}
-      <div class="funnel__label">
-        <div class="funnel__name">{{ seg.stage.title }}<small>{{ seg.stage.note }}</small></div>
-        <div class="funnel__count">{{ seg.stage.count | ru_num }}</div>
-        <div class="funnel__conv">
-          {% if seg.stage.conversion is not none %}
-            <span class="{% if seg.stage.is_bottleneck %}funnel__conv--drop{% endif %}">
-              ↓ {{ seg.stage.conversion | ru_pct }}
-            </span>
-            {% if seg.stage.is_bottleneck %}<span class="fn__flag">⚠ узкое место</span>{% endif %}
+  <ol class="path">
+    {% for step in funnel.steps %}
+    <li class="path__i{% if step.is_bottleneck %} path__i--drop{% endif %}">
+      <div>
+        <div class="path__t">
+          {{ step.from_title }} <span class="path__arr">→</span> {{ step.to_title }}
+          {% if bottleneck and step.key == bottleneck.key %}
+          <span class="fn__flag">чинить отсюда</span>
           {% endif %}
         </div>
+        {% if step.partial %}
+        <div class="path__cover"
+             title="Только там измерены оба конца шага">по {{ step.articles }} из {{ step.total_articles }} статей</div>
+        {% elif step.project_wide %}
+        <div class="path__cover">по проекту целиком</div>
+        {% endif %}
       </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
+
+      {% if step.measured and step.ratio is not none %}
+      {# Ориентир стоит на середине дорожки: до него — отставание, после — запас.
+         Так шаг с конверсией 2% и шаг с 41% сравниваются между собой честно. #}
+      <div class="path__track" role="img"
+           aria-label="{{ step.conversion }}% при ориентире {{ step.benchmark }}%">
+        <div class="path__fill" style="width: {{ (([step.ratio, 2] | min) * 50) | round(1) }}%"></div>
+        <i class="path__norm" title="Ориентир {{ step.benchmark }}%"></i>
+      </div>
+      {% endif %}
+
+      {% if step.measured %}
+      {# Что за шаг — сказано в подписи слева, поэтому здесь только числа:
+         иначе получалось «1 из 20 вступили в канал» — по-русски так не говорят. #}
+      <div class="path__facts">
+        <b>{{ step.to_count | ru_num }}</b> из {{ step.from_count | ru_num }} ·
+        <b>{{ step.conversion | ru_pct(2) }}</b>
+        {%- if step.benchmark %} <span class="muted">при {{ step.benchmark }}%</span>{% endif %}
+        {%- if step.ratio is not none and step.ratio < 1 %}
+        <span class="path__verdict">в {{ (1 / step.ratio) | round(1) }} раза хуже</span>
+        {%- endif %}
+      </div>
+      {% else %}
+      <div class="path__none">
+        Не измеряется: нет ни одной статьи, где посчитаны оба конца этого шага.
+        {% if step.key == 'reads' %}Нужны трекинг-ссылки на статьях с выгрузкой статистики.{% endif %}
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
 
   <details class="mt">
     <summary>Показать цифрами</summary>
@@ -80,12 +125,12 @@
       <table class="fn">
         <thead>
           <tr>
-            <th>Шаг</th><th style="text-align:right">Дошло</th>
-            <th>Конверсия в следующий</th><th style="text-align:right">Потеряно</th><th></th>
+            <th>Шаг</th><th class="num">Пришло</th><th class="num">Прошло</th>
+            <th>Конверсия против ориентира</th><th class="num">Потеряно</th><th>Покрытие</th>
           </tr>
         </thead>
         <tbody>
-          {% for stage in funnel.stages %}{{ ui.funnel_row(stage) }}{% endfor %}
+          {% for step in funnel.steps %}{{ ui.step_row(step) }}{% endfor %}
         </tbody>
       </table>
     </div>
@@ -93,11 +138,15 @@
 
   {% if bottleneck %}
   <div class="warns mt">
-    <b>Слабое звено — «{{ bottleneck.title.lower() }}».</b>
-    Дальше проходит {{ bottleneck.conversion | ru_pct }} при ожидаемых {{ bottleneck.benchmark }}%.
-    Чинить воронку стоит с этого шага: здесь теряется больше всего людей.
+    <b>Чинить стоит шаг «{{ bottleneck.from_title | lower }} → {{ bottleneck.to_title | lower }}».</b>
+    Проходит {{ bottleneck.conversion | ru_pct(2) }} при ориентире {{ bottleneck.benchmark }}% —
+    это в {{ (1 / bottleneck.ratio) | round(1) }} раза хуже ожидаемого{% if bottleneck.partial %},
+    и посчитано пока по {{ bottleneck.articles }} ст. из {{ bottleneck.total_articles }}{% endif %}.
   </div>
+  {% else %}
+  <p class="hint mt mb-0">Ни один измеренный шаг не отстаёт от ориентира.</p>
   {% endif %}
+  {% endif %}{# measured_steps #}
 
   {% if orphan_subscribers %}
   <p class="hint mb-0 mt">
@@ -107,21 +156,99 @@
   {% endif %}
 </div>
 
+{% if timeline %}
+{% set tl = timeline.plot() %}
+<div class="card">
+  <div class="headrow">
+    <div>
+      <h2>Как это росло</h2>
+      <p class="hint mb-0">Точки — настоящие замеры: статистику площадок выгружают руками,
+        поэтому линия идёт от выгрузки к выгрузке, а не по дням.</p>
+    </div>
+    <div class="legend">
+      <span class="lg-line"><i></i>показы, накопительно</span>
+      <span class="lg-money"><i></i>деньги</span>
+    </div>
+  </div>
+
+  <svg class="tl mt-s" viewBox="0 0 1000 315" role="img"
+       aria-label="Рост показов и события за период наблюдения">
+    {% for g in tl.grid %}
+    <line class="tl__grid" x1="60" y1="{{ g.y }}" x2="960" y2="{{ g.y }}"></line>
+    <text class="tl__ax" x="52" y="{{ g.y + 4 }}" text-anchor="end">{{ g.label | ru_num }}</text>
+    {% endfor %}
+
+    <path class="tl__ser" d="{{ tl.line }}"></path>
+    {% for d in tl.dots %}
+    <circle class="tl__dot" cx="{{ d.x }}" cy="{{ d.y }}" r="5"></circle>
+    {% endfor %}
+    {# Подписаны только концы: число на каждой точке — это шум #}
+    {% if tl.dots %}
+    <text class="tl__lab" x="{{ tl.dots[0].x }}" y="{{ tl.dots[0].y - 14 }}"
+          text-anchor="start">{{ tl.dots[0].views | ru_num }}</text>
+    <text class="tl__lab" x="{{ tl.dots[-1].x }}" y="{{ tl.dots[-1].y - 14 }}"
+          text-anchor="end">{{ tl.dots[-1].views | ru_num }}</text>
+    {% endif %}
+
+    {% for t in tl.ticks %}
+    <text class="tl__ax" x="{{ t.x }}" y="218" text-anchor="middle">{{ t.label }}</text>
+    {% endfor %}
+
+    {% if tl.events %}
+    <text class="tl__evs" x="60" y="248">ЧТО ПРОИЗОШЛО</text>
+    <line class="tl__evl" x1="60" y1="264" x2="960" y2="264"></line>
+    {% for e in tl.events %}
+    <line class="tl__evl" x1="{{ e.x }}" y1="196" x2="{{ e.x }}" y2="264"></line>
+    <circle class="tl__ev {% if e.is_money %}tl__ev--money{% endif %}"
+            cx="{{ e.x }}" cy="264" r="{{ 6.5 if e.is_money else 4.5 }}"></circle>
+    <text class="tl__evt {% if e.is_money %}tl__evt--money{% endif %}"
+          x="{{ e.x }}" y="285" text-anchor="middle">{{ e.title }}{% if e.amount %} {{ e.amount | ru_money }}{% endif %}</text>
+    {% if e.note %}
+    <text class="tl__evs" x="{{ e.x }}" y="300" text-anchor="middle">{{ e.note }}</text>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+  </svg>
+
+  {% if timeline.points | length < 4 %}
+  <div class="thin"><b>Наблюдений пока мало — {{ timeline.points | length }} замера.</b>
+    Линия честная, но короткая: чтобы «как это росло» стало аргументом само по себе,
+    нужно 6–8 недель регулярных выгрузок.</div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="grid2">
   <div class="card">
     <h2>Площадки</h2>
-    <p class="hint">Где статьи собирают внимание и насколько глубоко их читают.</p>
+    <p class="hint">Кто сколько внимания собрал и как глубоко там читают.</p>
     {% if platforms %}
-      {% set max_views = platforms | map(attribute='views') | max %}
+      {% set total_views = platforms | map(attribute='views') | sum %}
+      {# Доля от целого — одна полоса с сегментами, а не бублик: при долях вроде
+         77/13/10 два меньших сегмента в кольце становятся неразличимы. #}
+      {% if total_views %}
+      <div class="share" role="img" aria-label="Доли площадок по показам">
+        {% for p in platforms %}
+        <span style="width: {{ (p.views / total_views * 100) | round(1) }}%; background: var(--p{{ loop.index if loop.index < 4 else 3 }})"
+              title="{{ p.title }} — {{ (p.views / total_views * 100) | round(1) }} %"></span>
+        {% endfor %}
+      </div>
+      <div class="share__lab">
+        {% for p in platforms %}
+        <span style="width: {{ (p.views / total_views * 100) | round(1) }}%">{{ (p.views / total_views * 100) | round(1) }} %</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       {% for p in platforms %}
-      <div class="bar">
-        <div>{{ p.title }} <span class="muted small">· {{ p.articles }} ст.</span></div>
-        <div class="bar__track">
-          <div class="bar__fill" style="width: {{ (p.views / max_views * 100) | round | int if max_views else 0 }}%"></div>
-        </div>
-        <div class="bar__val">
+      {% set slot = loop.index if loop.index < 4 else 3 %}
+      <div class="prow">
+        <i class="chip" style="background: var(--p{{ slot }})"></i>
+        <div><b style="color: var(--p{{ slot }}-t)">{{ p.title }}</b>
+          <span class="muted small">· {{ p.articles }} ст.</span></div>
+        <div class="prow__v">
           {{ p.views | ru_num }}
-          {% if p.read_ratio is not none %}<span class="muted">· {{ p.read_ratio | ru_pct }}</span>{% endif %}
+          {% if p.read_ratio is not none %}<em>· дочит. {{ p.read_ratio | ru_pct }}</em>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -159,10 +286,16 @@
 <div class="card">
   <h2>Заявки и продажи</h2>
   <p class="hint">
-    Вносятся руками: человек приходит в личку, а не в форму. Укажите его Telegram-username —
-    система сама поймёт, какая статья его привела.
+    Заявки приходят в личку, а не в форму, поэтому вносятся руками. Укажите
+    Telegram-username — система сама поймёт, какая статья привела человека.
   </p>
-  <form method="post" action="/projects/{{ project.id }}/deals">
+
+  {# Форма ввода свёрнута. Экран показывают заказчикам Артура, а раскрытая форма с
+     пустыми полями первым делом сообщает им «эти цифры набиты руками». Заполняют её
+     редко, читают экран — часто, поэтому по умолчанию видна таблица, а не ввод. #}
+  <details>
+    <summary>Внести заявку или продажу</summary>
+    <form method="post" action="/projects/{{ project.id }}/deals" class="mt-s">
     <div class="grid2">
       <div>
         <label for="stage">Что это</label>
@@ -186,7 +319,8 @@
       {{ ui.field('amount', 'Сумма, ₽', '0') }}
     </div>
     <div class="row mt"><button type="submit">Добавить</button></div>
-  </form>
+    </form>
+  </details>
 
   {% if deals %}
   <div class="table-wrap mt-l">
@@ -216,31 +350,34 @@
 <div class="card">
   <h2>Все статьи</h2>
   <p class="hint">Полная картина по каждому тексту: от показов до денег.</p>
+  {% set live = stats | rejectattr('is_empty') | list %}
+  {% set idle = stats | selectattr('is_empty') | list %}
   {% if stats %}
+  {% if live %}
   <div class="table-wrap">
     <table>
-      <tr>
-        <th>Статья</th><th class="num">Показы</th><th class="num">Дочитывания</th>
-        <th class="num">Переходы</th><th class="num">Подписки</th><th class="num">Заявки</th>
-        <th class="num">Выручка</th><th class="num">Очки</th>
-      </tr>
-      {% for item in stats %}
-      <tr>
-        <td><a href="/articles/{{ item.article.id }}">{{ item.article.title }}</a></td>
-        <td class="num">{{ item.views | ru_num }}</td>
-        <td class="num">
-          {{ item.reads | ru_num }}
-          {% if item.read_ratio is not none %}<span class="muted">· {{ item.read_ratio | ru_pct }}</span>{% endif %}
-        </td>
-        <td class="num">{{ item.clicks | ru_num }}</td>
-        <td class="num">{{ item.subscribers | ru_num }}</td>
-        <td class="num">{{ item.leads | ru_num }}</td>
-        <td class="num">{{ item.revenue | ru_money }}</td>
-        <td class="num">{{ item.score }}</td>
-      </tr>
-      {% endfor %}
+      {{ ui.article_head() }}
+      {% for item in live %}{{ ui.article_row(item) }}{% endfor %}
     </table>
   </div>
+  {% endif %}
+
+  {# Статьи без единого измерения вынесены вниз: строка сплошных нулей рядом с
+     работающими читается как «не сработало», хотя цифр по ней просто ещё нет. #}
+  {% if idle %}
+  <details class="{% if live %}mt{% endif %}">
+    <summary>
+      Ещё {{ idle | length | ru_plural('статья', 'статьи', 'статей') }} без цифр
+      <span class="muted small">— не опубликованы или нет выгрузки</span>
+    </summary>
+    <div class="table-wrap mt-s">
+      <table>
+        {{ ui.article_head() }}
+        {% for item in idle %}{{ ui.article_row(item) }}{% endfor %}
+      </table>
+    </div>
+  </details>
+  {% endif %}
   {% else %}
     {{ ui.empty('Статей пока нет.', '/projects/' ~ project.id ~ '/generate', 'Сгенерировать первую') }}
   {% endif %}

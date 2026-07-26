@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Концепт 2 — «Редакция»</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* КОНЦЕПТ «РЕДАКЦИЯ» — черновой эскиз, тексты рабочие.
+   Герой экрана — не воронка, а сами публикации. Кегль заголовка И ЕСТЬ рейтинг:
+   что заработало больше, то физически крупнее. Воронка уходит в правую колонку
+   сноской. Цвет один: корректорский красный на провале. */
+:root{
+  --bg:#FFFFFF; --ink:#0C0C0C; --ink2:#3A3A3A; --grey:#6E6E6E;
+  --rule:#E4E4E4; --rule2:#F0F0F0;
+  --red:#C0231C;                  /* единственный цвет на экране */
+  --sans:'Onest',-apple-system,'Helvetica Neue',system-ui,sans-serif;
+  --mono:'IBM Plex Mono','SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1340px;margin:0 auto;padding:38px 44px 70px}
+
+/* --------------------------------------------------------------- колонтитул */
+.masthead{display:flex;align-items:baseline;justify-content:space-between;
+  border-bottom:3px solid var(--ink);padding-bottom:11px}
+.masthead__n{font-size:23px;font-weight:800;letter-spacing:-.035em}
+.masthead__d{font-family:var(--mono);font-size:11.5px;color:var(--grey);
+  text-transform:uppercase;letter-spacing:.08em}
+
+/* строка итогов — набрана как подзаголовок издания, не как плитки */
+.summary{display:flex;gap:38px;flex-wrap:wrap;padding:15px 0 20px;
+  border-bottom:1px solid var(--rule)}
+.sm__v{font-size:25px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.sm__l{font-size:11.5px;color:var(--grey);margin-top:-2px}
+
+.cols{display:grid;grid-template-columns:1fr 316px;gap:52px;margin-top:32px;align-items:start}
+
+/* --------------------------------------------------------------- полоса текстов */
+.lede{font-size:12px;text-transform:uppercase;letter-spacing:.11em;color:var(--grey);
+  font-weight:600;margin:0 0 20px}
+
+.piece{padding:24px 0;border-bottom:1px solid var(--rule)}
+.piece:first-of-type{padding-top:0}
+.piece a{color:inherit;text-decoration:none}
+.piece__h{font-weight:700;letter-spacing:-.032em;line-height:1.06;margin:0}
+/* кегль = рейтинг. Лидер набран вдвое крупнее аутсайдера — это и есть график. */
+.piece--1 .piece__h{font-size:53px}
+.piece--2 .piece__h{font-size:33px}
+.piece--3 .piece__h{font-size:24px}
+.piece__meta{display:flex;gap:26px;flex-wrap:wrap;align-items:baseline;margin-top:13px}
+.mt{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.mt b{font-weight:500;color:var(--ink)}
+.mt i{font-style:normal;color:var(--grey)}
+.plat{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--grey);
+  font-weight:600}
+.earned{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:500;
+  font-variant-numeric:tabular-nums}
+.piece--1 .earned{font-size:21px}
+.nothing{color:var(--grey);font-size:12.5px}
+
+/* черновики — мелким, отдельным списком, без цифр-нулей */
+.drafts{margin-top:26px;padding-top:18px;border-top:1px solid var(--ink)}
+.drafts h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--grey);
+  margin:0 0 12px;font-weight:600}
+.draft{display:flex;justify-content:space-between;gap:18px;padding:7px 0;font-size:14px;
+  color:var(--ink2);border-bottom:1px solid var(--rule2)}
+.draft:last-child{border-bottom:0}
+.draft span{font-size:11.5px;color:var(--grey);white-space:nowrap;font-family:var(--mono)}
+
+/* --------------------------------------------------------------- правая колонка */
+aside{position:sticky;top:30px}
+.box{border-top:3px solid var(--ink);padding-top:13px;margin-bottom:28px}
+.box h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 13px;
+  font-weight:700}
+.st{padding:9px 0;border-bottom:1px solid var(--rule2)}
+.st:last-child{border-bottom:0}
+.st__t{display:flex;justify-content:space-between;gap:10px;font-size:13px;align-items:baseline}
+.st__t b{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+.st__b{height:4px;background:var(--rule);margin-top:6px;position:relative}
+.st__f{height:100%;background:#B9B9B9}
+.st__n{position:absolute;left:50%;top:-3px;width:1px;height:10px;background:var(--ink)}
+.st__s{font-size:11px;color:var(--grey);margin-top:5px;font-family:var(--mono)}
+.st--bad .st__f{background:var(--red)}
+.st--bad .st__t b{color:var(--red);font-weight:600}
+
+.flag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;color:#fff;background:var(--red);padding:2px 7px;margin-left:6px}
+
+.plats .st__t{font-size:13.5px}
+.foot{margin-top:44px;padding-top:13px;border-top:1px solid var(--rule);
+  display:flex;justify-content:space-between;font-size:11.5px;color:var(--grey)}
+
+@media (max-width:1080px){
+  .cols{grid-template-columns:1fr;gap:34px}
+  aside{position:static}
+  .piece--1 .piece__h{font-size:36px}
+  .piece--2 .piece__h{font-size:26px}
+  .piece--3 .piece__h{font-size:21px}
+  .wrap{padding:26px 20px 50px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="masthead__n">База Маркетинг</div>
+    <div class="masthead__d">органика · 20 — 27 июля 2026 · выпусков 6</div>
+  </div>
+
+  <div class="summary">
+    <div><div class="sm__v">60 000 ₽</div><div class="sm__l">принесли тексты</div></div>
+    <div><div class="sm__v">24 400</div><div class="sm__l">показов</div></div>
+    <div><div class="sm__v">10 080</div><div class="sm__l">дочитываний</div></div>
+    <div><div class="sm__v">4</div><div class="sm__l">подписчика</div></div>
+  </div>
+
+  <div class="cols">
+    <main>
+      <p class="lede">Что вышло и что принесло</p>
+
+      <article class="piece piece--1">
+        <h2 class="piece__h"><a href="#">Как выстроить маркетинг, который не зависит от удачи</a></h2>
+        <div class="piece__meta">
+          <span class="plat">vc.ru</span>
+          <span class="mt"><b>18 900</b> <i>показов</i></span>
+          <span class="mt"><b>8 100</b> <i>дочитали · 42,9 %</i></span>
+          <span class="mt"><b>2</b> <i>подписки</i></span>
+          <span class="earned">60 000 ₽</span>
+        </div>
+      </article>
+
+      <article class="piece piece--2">
+        <h2 class="piece__h"><a href="#">Скорость ответа на заявку: незаметный этап, который решает всё</a></h2>
+        <div class="piece__meta">
+          <span class="plat">Яндекс.Дзен</span>
+          <span class="mt"><b>3 100</b> <i>показов</i></span>
+          <span class="mt"><b>880</b> <i>дочитали · 28,4 %</i></span>
+          <span class="mt"><b>1</b> <i>подписка</i></span>
+          <span class="earned nothing">заявка без оплаты</span>
+        </div>
+      </article>
+
+      <article class="piece piece--3">
+        <h2 class="piece__h"><a href="#">Почему дешёвые заявки дороже дорогих</a></h2>
+        <div class="piece__meta">
+          <span class="plat">Telegram</span>
+          <span class="mt"><b>2 400</b> <i>показов</i></span>
+          <span class="mt"><b>1 100</b> <i>дочитали · 45,8 %</i></span>
+          <span class="mt"><b>0</b> <i>подписок</i></span>
+          <span class="earned nothing">пока ничего</span>
+        </div>
+      </article>
+
+      <div class="drafts">
+        <h3>В работе — цифр ещё нет</h3>
+        <div class="draft">Как собственнику проверить своего таргетолога по цифрам <span>Дзен · черновик</span></div>
+        <div class="draft">Как собственнику проверить своего таргетолога по цифрам <span>Дзен · черновик</span></div>
+        <div class="draft">Что делать, если менеджеры говорят «лиды холодные» <span>Дзен · черновик</span></div>
+      </div>
+    </main>
+
+    <aside>
+      <div class="box">
+        <h3>Путь читателя</h3>
+
+        <div class="st">
+          <div class="st__t"><span>Показы → Дочитывания</span><b>41,31 %</b></div>
+          <div class="st__b"><div class="st__f" style="width:82%"></div><i class="st__n"></i></div>
+          <div class="st__s">10 080 из 24 400 · норма 25 % · по 3 из 6</div>
+        </div>
+
+        <div class="st">
+          <div class="st__t"><span>Дочитывания → Переходы</span><b>2,27 %</b></div>
+          <div class="st__b"><div class="st__f" style="width:57%"></div><i class="st__n"></i></div>
+          <div class="st__s">20 из 880 · норма 2 % · по 1 из 6</div>
+        </div>
+
+        <div class="st st--bad">
+          <div class="st__t"><span>Переходы → Подписки<span class="flag">чинить</span></span><b>5,00 %</b></div>
+          <div class="st__b"><div class="st__f" style="width:12.5%"></div><i class="st__n"></i></div>
+          <div class="st__s">1 из 20 · норма 20 % · вчетверо хуже</div>
+        </div>
+
+        <div class="st">
+          <div class="st__t"><span>Подписки → Заявки</span><b>50,00 %</b></div>
+          <div class="st__b"><div class="st__f" style="width:100%"></div><i class="st__n"></i></div>
+          <div class="st__s">2 из 4 · норма 3 %</div>
+        </div>
+
+        <div class="st">
+          <div class="st__t"><span>Заявки → Продажи</span><b>50,00 %</b></div>
+          <div class="st__b"><div class="st__f" style="width:100%"></div><i class="st__n"></i></div>
+          <div class="st__s">1 из 2 · норма 15 %</div>
+        </div>
+      </div>
+
+      <div class="box plats">
+        <h3>Площадки</h3>
+        <div class="st"><div class="st__t"><span>vc.ru</span><b>18 900</b></div>
+          <div class="st__s">1 текст · дочитываемость 42,9 %</div></div>
+        <div class="st"><div class="st__t"><span>Яндекс.Дзен</span><b>3 100</b></div>
+          <div class="st__s">4 текста · дочитываемость 28,4 %</div></div>
+        <div class="st"><div class="st__t"><span>Telegram</span><b>2 400</b></div>
+          <div class="st__s">1 текст · дочитываемость 45,8 %</div></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="foot">
+    <span>Черновой эскиз подачи. Тексты рабочие.</span>
+    <span>Концепт 2 — «Редакция»</span>
+  </div>
+</div>
+</body>
+</html>

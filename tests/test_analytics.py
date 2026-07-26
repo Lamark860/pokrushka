@@ -13,6 +13,7 @@ from app.services.analytics import (
     learning_examples,
     platform_stats,
     strip_cta,
+    timeline,
     top_articles,
 )
 from app.services.metrics import save_manual
@@ -90,8 +91,9 @@ def test_funnel_conversions_and_ctr(db_session, project_with_funnel):
 
     result = funnel(db_session, project)
 
-    assert result.get("views").conversion == 40.0  # 6400 / 16000
+    assert result.step("views").conversion == 40.0  # 6400 / 16000
     assert result.ctr == pytest.approx(0.28, abs=0.01)  # 45 / 16000
+    assert result.ctr_articles == 2  # обе статьи с обоими приборами
     assert result.revenue_per_article == 50000  # одна опубликованная статья
 
 
@@ -100,9 +102,10 @@ def test_funnel_empty_project_does_not_crash(db_session, tenant_with_user):
     result = funnel(db_session, project)
 
     assert result.get("views").count == 0
-    assert result.get("views").conversion is None
+    assert result.step("views").conversion is None
+    assert not result.step("views").measured
     assert result.ctr is None
-    assert result.max_count == 1  # деление на ноль в шаблоне исключено
+    assert result.worst_step is None
 
 
 def test_article_stats_and_score(db_session, project_with_funnel):
@@ -121,39 +124,111 @@ def test_article_stats_and_score(db_session, project_with_funnel):
     assert best.score > stats[loser.id].score
 
 
-def test_funnel_shape_narrows_monotonically(db_session, project_with_funnel):
-    """Воронка должна сужаться: это её единственное сообщение, читаемое без цифр."""
+def test_step_measured_only_where_both_instruments_stand(db_session, project_with_funnel):
+    """Статья без трекинг-ссылки не должна занижать конверсию в переходы.
+
+    Её дочитывания попали бы в знаменатель, а переходы в числитель попасть не могут:
+    их физически никто не считает. Ровно на этом дашборд объявлял провальным шаг,
+    который на измеренных статьях идёт нормально.
+    """
+    project, _, _ = project_with_funnel
+    blind = _article(db_session, project, "Без трекинга", "bez-trekinga")
+    db_session.commit()
+    save_manual(db_session, blind, {"views": 50000, "reads": 20000},
+                collected_at=date(2026, 7, 27))
+
+    step = funnel(db_session, project).step("reads")
+
+    assert step.from_count == 6400  # 20 000 дочитываний слепой статьи не в счёт
+    assert step.to_count == 45
+    assert step.conversion == pytest.approx(0.70, abs=0.01)
+    assert step.partial  # прибор стоит не на всех статьях — это видно на экране
+    assert (step.articles, step.total_articles) == (2, 3)
+
+
+def test_step_ratio_uses_own_benchmark(db_session, project_with_funnel):
+    """Единого порога нет: 40% с показов — норма, 0.7% с дочитываний — провал."""
     project, _, _ = project_with_funnel
 
-    shape = funnel(db_session, project).shape()
+    steps = {s.key: s for s in funnel(db_session, project).steps}
 
-    assert len(shape.segments) == 6
-    widths = [seg.width_top for seg in shape.segments]
-    assert widths == sorted(widths, reverse=True)
-    assert widths[0] == 100.0  # первая ступень — во всю ширину
-    assert all(w >= 14.0 for w in widths)  # хвост остаётся различимым
-    assert widths[1] > widths[2]  # обрыв на узком месте виден
-    assert shape.outline.startswith("M ") and shape.outline.endswith("Z")
-    assert shape.height == 6 * 46
+    assert steps["views"].ratio == pytest.approx(1.6, abs=0.01)  # 40% при ориентире 25%
+    assert not steps["views"].is_bottleneck
+    assert steps["reads"].ratio == pytest.approx(0.35, abs=0.01)  # 0.7% при ориентире 2%
+    assert steps["reads"].is_bottleneck
+    assert steps["reads"].lost == 6355  # 6400 дочитываний → 45 переходов
 
 
-def test_funnel_shape_empty_when_no_traffic(db_session, tenant_with_user):
+def test_worst_step_is_the_biggest_lag_not_the_first(db_session, project_with_funnel):
+    """Ниже ориентира могут быть несколько шагов — чинить надо тот, что отстал сильнее."""
+    project, _, _ = project_with_funnel
+
+    result = funnel(db_session, project)
+    steps = {s.key: s for s in result.steps}
+
+    assert steps["reads"].is_bottleneck  # 0.70% при 2% → 0.35 от ориентира
+    assert steps["clicks"].is_bottleneck  # 4.44% при 20% → 0.22 от ориентира
+    assert result.worst_step.key == "clicks"  # раньше был бы выбран первый по порядку
+
+
+def test_timeline_takes_latest_snapshot_per_article(db_session, project_with_funnel):
+    """Накопительная линия, а не сумма всех срезов: три замера ≠ утроенные показы."""
+    project, _, _ = project_with_funnel
+
+    tl = timeline(db_session, project)
+
+    assert [(p.day, p.views) for p in tl.points] == [
+        (date(2026, 7, 20), 10000),  # только победитель, первый срез
+        (date(2026, 7, 27), 16000),  # 14 000 (его же новый срез) + 2 000 второй статьи
+    ]
+    assert bool(tl)
+
+
+def test_timeline_marks_money_event(db_session, project_with_funnel):
+    project, _, _ = project_with_funnel
+
+    events = timeline(db_session, project).events
+
+    assert [e.day for e in events] == [date(2026, 7, 10), date(2026, 7, 12)]
+    assert events[0].title == "заявка" and not events[0].is_money
+    assert events[1].is_money and events[1].title == "продажа"
+    assert events[1].amount == 50000  # форматирует шаблон, не сервис
+
+
+def test_timeline_needs_two_points(db_session, tenant_with_user):
+    """По одному замеру линию не построить — блок просто не показывается."""
     _, _, project = tenant_with_user("empty@example.com", "Пустой")
-    shape = funnel(db_session, project).shape()
 
-    assert not shape
-    assert shape.segments == []
+    tl = timeline(db_session, project)
+
+    assert not tl
+    assert tl.plot().line == ""
 
 
-def test_bottleneck_detected_by_stage_benchmark(db_session, project_with_funnel):
-    """Единого порога нет: 41% с показов — норма, 0.2% с дочитываний — провал."""
+def test_timeline_plot_geometry(db_session, project_with_funnel):
     project, _, _ = project_with_funnel
 
-    stages = {s.key: s for s in funnel(db_session, project).stages}
+    plot = timeline(db_session, project).plot()
 
-    assert not stages["views"].is_bottleneck  # 40% при ориентире 25%
-    assert stages["reads"].is_bottleneck  # 0.7% при ориентире 2%
-    assert stages["reads"].lost == 6355  # 6400 дочитываний → 45 переходов
+    assert plot.line.startswith("M ") and len(plot.dots) == 2
+    assert plot.dots[1]["x"] > plot.dots[0]["x"]  # позже по времени — правее
+    assert plot.dots[1]["y"] < plot.dots[0]["y"]  # больше показов — выше
+    assert plot.ticks[0]["label"] == "10.07"  # шкала начинается с первого события
+    assert all(0 <= e["x"] <= 1000 for e in plot.events)
+
+
+def test_empty_article_separated_from_working_ones(db_session, project_with_funnel):
+    """Статья без единого измерения помечается отдельно, а не строкой нулей."""
+    project, winner, _ = project_with_funnel
+    fresh = _article(db_session, project, "Свежая, ещё не опубликована", "svezhaya")
+    db_session.commit()
+
+    stats = {item.article.id: item for item in article_stats(db_session, project)}
+
+    assert stats[fresh.id].is_empty
+    assert not stats[fresh.id].has_metrics and not stats[fresh.id].has_links
+    assert not stats[winner.id].is_empty
+    assert stats[winner.id].has_metrics and stats[winner.id].has_links
 
 
 def test_top_articles_sorted_and_filtered(db_session, project_with_funnel):

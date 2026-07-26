@@ -32,7 +32,9 @@ def test_dashboard_opens_for_empty_project(client, tenant_with_user):
     response = client.get(f"/projects/{project.id}/dashboard")
 
     assert response.status_code == 200
-    assert "Воронка" in response.text
+    assert "Путь читателя" in response.text
+    # На пустом проекте вместо пяти строк «не измеряется» — приглашение к действию
+    assert "Пока измерять нечего" in response.text
 
 
 def test_deal_attributed_by_username(client, db_session, tenant_with_user):

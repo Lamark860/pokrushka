@@ -16,6 +16,7 @@ from app.services.analytics import (
     funnel,
     platform_stats,
     recent_deals,
+    timeline,
     top_articles,
 )
 from app.web.deps import current_user, get_project, templates
@@ -55,6 +56,7 @@ def dashboard(
             "funnel": funnel(db, project, stats),
             "top": top_articles(db, project, stats=stats),
             "platforms": platform_stats(db, project, stats),
+            "timeline": timeline(db, project),
             "stats": sorted(stats, key=lambda s: s.score, reverse=True),
             "deals": recent_deals(db, project),
             "articles": articles,

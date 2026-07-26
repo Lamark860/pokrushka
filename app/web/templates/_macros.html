@@ -8,34 +8,66 @@
 </div>
 {% endmacro %}
 
-{# Строка воронки: числа читаются как числа, а рисуется сравнимая величина —
-   конверсия против ориентира. Риска на мерке показывает ожидаемый уровень. #}
-{% macro funnel_row(stage) %}
+{# Строка шага: числа читаются как числа, а рисуется единственная сравнимая между
+   шагами величина — конверсия против ориентира. Ориентир стоит на середине дорожки.
+   Последняя колонка — покрытие: по скольким статьям шаг вообще посчитан. #}
+{% macro step_row(step) %}
 <tr>
-  <td class="fn__step">{{ stage.title }}<small>{{ stage.note }}</small></td>
-  <td class="fn__count">{{ stage.count | ru_num }}</td>
+  <td class="fn__step">{{ step.from_title }} → {{ step.to_title }}<small>{{ step.action }}</small></td>
+  <td class="fn__count">{% if step.measured %}{{ step.from_count | ru_num }}{% else %}—{% endif %}</td>
+  <td class="fn__count">{% if step.measured %}{{ step.to_count | ru_num }}{% else %}—{% endif %}</td>
   <td>
-    {% if stage.conversion is not none %}
-    <div class="meter {% if stage.is_bottleneck %}meter--low{% endif %}">
+    {% if step.measured and step.ratio is not none %}
+    <div class="meter {% if step.is_bottleneck %}meter--low{% endif %}">
       <div class="meter__track">
-        <div class="meter__fill" style="width: {{ [stage.conversion, 100] | min | round(1) }}%"></div>
-        {% if stage.benchmark %}
-        <div class="meter__mark" style="left: {{ [stage.benchmark, 100] | min }}%"
-             title="Ожидаемая конверсия {{ stage.benchmark }}%"></div>
-        {% endif %}
+        <div class="meter__fill" style="width: {{ (([step.ratio, 2] | min) * 50) | round(1) }}%"></div>
+        <div class="meter__mark" style="left: 50%" title="Ориентир {{ step.benchmark }}%"></div>
       </div>
-      <div class="meter__val">{{ stage.conversion | ru_pct }}</div>
+      <div class="meter__val">{{ step.conversion | ru_pct(2) }}</div>
     </div>
     {% else %}
-    <span class="muted small">—</span>
+    <span class="muted small">не измеряется</span>
     {% endif %}
   </td>
-  <td class="fn__lost">{% if stage.lost %}−{{ stage.lost | ru_num }}{% else %}—{% endif %}</td>
-  <td>
-    {% if stage.is_bottleneck %}
-    <span class="fn__flag">⚠ узкое место</span>
-    {% endif %}
+  <td class="fn__lost">
+    {% if step.measured and step.lost %}−{{ step.lost | ru_num }}{% else %}—{% endif %}
   </td>
+  <td class="muted small nowrap">
+    {% if step.project_wide %}по проекту
+    {% elif step.articles %}{{ step.articles }} из {{ step.total_articles }} ст.
+    {% else %}нет данных{% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{# Шапка и строка таблицы статей — одни и те же для работающих статей и для тех,
+   по которым цифр ещё нет: они лежат в разных таблицах, но выглядят одинаково. #}
+{% macro article_head() %}
+<tr>
+  <th>Статья</th><th class="num">Показы</th><th class="num">Дочитывания</th>
+  <th class="num">Переходы</th><th class="num">Подписки</th><th class="num">Заявки</th>
+  <th class="num">Выручка</th><th class="num">Очки</th>
+</tr>
+{% endmacro %}
+
+{% macro article_row(item) %}
+<tr>
+  <td><a href="/articles/{{ item.article.id }}">{{ item.article.title }}</a></td>
+  <td class="num">{% if item.has_metrics %}{{ item.views | ru_num }}{% else %}<span class="muted"
+      title="Выгрузка статистики не загружена">нет данных</span>{% endif %}</td>
+  <td class="num">
+    {% if item.has_metrics %}
+      {{ item.reads | ru_num }}
+      {% if item.read_ratio is not none %}<span class="muted">· {{ item.read_ratio | ru_pct }}</span>{% endif %}
+    {% else %}<span class="muted">—</span>{% endif %}
+  </td>
+  {# Ноль переходов без трекинг-ссылки значит «не мерили», а не «никто не кликнул» #}
+  <td class="num">{% if item.has_links %}{{ item.clicks | ru_num }}{% else %}<span class="muted"
+      title="Трекинг-ссылки нет — переходы по этой статье не считаются">не считается</span>{% endif %}</td>
+  <td class="num">{{ item.subscribers | ru_num }}</td>
+  <td class="num">{{ item.leads | ru_num }}</td>
+  <td class="num">{{ item.revenue | ru_money }}</td>
+  <td class="num">{{ item.score }}</td>
 </tr>
 {% endmacro %}
 
@@ -64,7 +96,8 @@
 {% macro delete_form(action, label='Удалить', confirm='') %}
 <form method="post" action="{{ action }}" class="inline"
       {% if confirm %}onsubmit="return confirm('{{ confirm }}')"{% endif %}>
-  <button class="danger small">{{ label }}</button>
+  {# Удаление — не главное действие на экране: тихая кнопка, красный только под курсором #}
+  <button class="quiet small">{{ label }}</button>
 </form>
 {% endmacro %}
 
